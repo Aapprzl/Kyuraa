@@ -19,6 +19,30 @@
             }
         }
     </script>
+    <style>
+        .typing-dot {
+            animation: typing-bounce 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing-bounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        .tool-spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .copy-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .message:hover .copy-btn {
+            opacity: 1;
+        }
+    </style>
 </head>
 <body class="bg-gray-950 text-gray-100 h-screen flex flex-col">
     <!-- Header -->
@@ -28,6 +52,7 @@
             <span>Penerjemah Arab-Indonesia</span>
         </h1>
         <div class="flex items-center gap-3">
+            <span id="model-badge" class="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full">gemini-2.5-flash</span>
             <span id="session-id" class="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full">...</span>
             <div id="connection-dot" class="w-2 h-2 rounded-full bg-red-500"></div>
         </div>
@@ -72,6 +97,22 @@
         </div>
     </div>
 
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="hidden px-5 pb-3">
+        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 max-w-xl">
+            <div class="flex items-center gap-3">
+                <div class="tool-spinner w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                <div class="flex-1">
+                    <span class="text-sm text-gray-300">Agent sedang bekerja...</span>
+                    <div id="tools-used" class="text-xs text-gray-500 mt-1"></div>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+                <span id="loading-step" class="text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded">Mendeteksi bahasa</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Input -->
     <div class="bg-gray-900 p-4 border-t border-gray-800">
         <div class="max-w-2xl mx-auto flex gap-3">
@@ -84,6 +125,14 @@
     <!-- Toast -->
     <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-green-700 text-white px-5 py-2 rounded-lg text-sm opacity-0 transition-opacity pointer-events-none"></div>
 
+    <!-- Token Stats Bar -->
+    <div id="stats-bar" class="bg-gray-900 px-5 py-2 border-t border-gray-800 flex items-center gap-6 text-xs text-gray-500">
+        <span id="stat-tokens">Tokens: 0</span>
+        <span id="stat-model">Model: -</span>
+        <span id="stat-time">Time: -</span>
+        <span id="stat-references">References: -</span>
+    </div>
+
     <script>
         const chatContainer = document.getElementById('chat-container');
         const messageInput = document.getElementById('message-input');
@@ -91,6 +140,13 @@
         const sessionIdEl = document.getElementById('session-id');
         const connectionDot = document.getElementById('connection-dot');
         const toast = document.getElementById('toast');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const toolsUsedEl = document.getElementById('tools-used');
+        const loadingStepEl = document.getElementById('loading-step');
+        const statTokens = document.getElementById('stat-tokens');
+        const statModel = document.getElementById('stat-model');
+        const statTime = document.getElementById('stat-time');
+        const statReferences = document.getElementById('stat-references');
 
         let ws = null;
         let sessionId = 's-' + Date.now();
@@ -99,6 +155,8 @@
         let selectedStyle = 'akademik';
         let currentContent = '';
         let currentResponseDiv = null;
+        let lastResponseStats = null;
+        let startTime = null;
 
         function connect() {
             sessionId = 's-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
@@ -117,8 +175,8 @@
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'token') appendToken(data.content);
-                else if (data.type === 'done') finishResponse();
-                else if (data.type === 'error') { showError(data.message); finishResponse(); }
+                else if (data.type === 'done') finishResponse(data);
+                else if (data.type === 'error') { showError(data.message); finishResponse(data); }
                 else if (data.type === 'file_saved') showToast('File saved: ' + data.path.split('\\').pop());
             };
 
@@ -137,9 +195,10 @@
 
             content = `[${selectedMode.toUpperCase()}] [${selectedStyle.toUpperCase()}] ${content}`;
             
-            const userDiv = document.createElement('div');
-            userDiv.className = 'bg-blue-600 text-white rounded-lg p-3 max-w-xl ml-auto';
-            userDiv.textContent = messageInput.value.trim();
+            startTime = Date.now();
+            showLoading(true, 'Mendeteksi bahasa');
+
+            const userDiv = createMessageDiv('user', messageInput.value.trim());
             chatContainer.appendChild(userDiv);
 
             messageInput.value = '';
@@ -150,12 +209,69 @@
             scrollToBottom();
         }
 
+        function createMessageDiv(role, content, stats = null) {
+            const div = document.createElement('div');
+            div.className = `message ${role} relative bg-${role === 'user' ? 'blue-600' : 'gray-900'} ${role === 'user' ? 'text-white rounded-lg p-3 max-w-xl ml-auto' : 'border border-gray-800 rounded-lg p-4 max-w-xl'}`;
+            
+            // Copy button
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-btn absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-2 py-1 rounded';
+            copyBtn.innerHTML = '📋';
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(content).then(() => {
+                    showToast('Copied!', 'info');
+                });
+            };
+            div.appendChild(copyBtn);
+
+            // Content
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'response-content text-gray-200 whitespace-pre-wrap';
+            contentDiv.textContent = content;
+            div.appendChild(contentDiv);
+
+            // Stats bar (only for assistant)
+            if (role === 'assistant' && stats) {
+                const statsDiv = document.createElement('div');
+                statsDiv.className = 'mt-3 pt-2 border-t border-gray-700 text-xs text-gray-500 flex flex-wrap gap-3';
+                
+                const time = stats.time || getElapsedTime();
+                const tokens = stats.usage?.output_tokens || 0;
+                const model = stats.model || 'gemini';
+                const refs = stats.references_loaded?.length || 0;
+
+                statsDiv.innerHTML = `
+                    <span>⏰ ${time}</span>
+                    <span>🔤 ${tokens} tokens</span>
+                    <span>🤖 ${model}</span>
+                    <span>📚 ${refs} refs</span>
+                `;
+                div.appendChild(statsDiv);
+            }
+
+            return div;
+        }
+
+        function getElapsedTime() {
+            if (!startTime) return '0s';
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            return elapsed + 's';
+        }
+
         function startResponse() {
             currentContent = '';
             currentResponseDiv = document.createElement('div');
-            currentResponseDiv.className = 'bg-gray-900 border border-gray-800 rounded-lg p-4 max-w-xl';
+            currentResponseDiv.className = 'message assistant relative bg-gray-900 border border-gray-800 rounded-lg p-4 max-w-xl';
             currentResponseDiv.innerHTML = `
                 <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded mb-2 inline-block">${selectedMode.toUpperCase()}</span>
+                <div class="flex items-center gap-2 text-sm text-gray-400 mb-2">
+                    <div class="flex gap-1">
+                        <span class="typing-dot w-2 h-2 bg-blue-400 rounded-full"></span>
+                        <span class="typing-dot w-2 h-2 bg-blue-400 rounded-full"></span>
+                        <span class="typing-dot w-2 h-2 bg-blue-400 rounded-full"></span>
+                    </div>
+                    <span>Mengetik...</span>
+                </div>
                 <div class="response-content text-gray-200 whitespace-pre-wrap"></div>
             `;
             chatContainer.appendChild(currentResponseDiv);
@@ -164,9 +280,76 @@
         function appendToken(text) {
             if (!currentResponseDiv) return;
             currentContent += text;
+            
+            // Update loading steps
+            updateLoadingStep();
+            
             const contentDiv = currentResponseDiv.querySelector('.response-content');
             contentDiv.innerHTML = renderContent(currentContent);
             scrollToBottom();
+        }
+
+        function updateLoadingStep() {
+            const steps = ['Mendeteksi bahasa', 'Memuat referensi', 'Menganalisis gramatikal', 'Menerjemahkan', 'Menyusun output'];
+            const progress = currentContent.length;
+            const stepIndex = Math.min(Math.floor(progress / 100) % steps.length, steps.length - 1);
+            loadingStepEl.textContent = steps[stepIndex];
+            toolsUsedEl.textContent = `References: 05-akademik, 06-kolokasi`;
+        }
+
+        function finishResponse(data = {}) {
+            sendBtn.disabled = false;
+            hideLoading();
+            startTime = null;
+            
+            if (currentResponseDiv) {
+                // Remove typing indicator
+                const typingDiv = currentResponseDiv.querySelector('.flex.items-center');
+                if (typingDiv) typingDiv.remove();
+
+                // Update stats
+                lastResponseStats = {
+                    time: getElapsedTime(),
+                    usage: data.usage || {},
+                    model: data.model || 'gemini',
+                    references_loaded: data.references_loaded || []
+                };
+
+                // Add stats bar
+                const statsDiv = document.createElement('div');
+                statsDiv.className = 'mt-3 pt-2 border-t border-gray-700 text-xs text-gray-500 flex flex-wrap gap-3';
+                const tokens = lastResponseStats.usage?.output_tokens || Math.ceil(currentContent.length / 4);
+                statsDiv.innerHTML = `
+                    <span>⏰ ${lastResponseStats.time}</span>
+                    <span>🔤 ~${tokens} tokens</span>
+                    <span>🤖 ${lastResponseStats.model}</span>
+                    <span>📚 ${lastResponseStats.references_loaded.length} refs</span>
+                `;
+                currentResponseDiv.appendChild(statsDiv);
+
+                // Update global stats
+                statTokens.textContent = `Tokens: ~${tokens}`;
+                statModel.textContent = `Model: ${lastResponseStats.model}`;
+                statTime.textContent = `Time: ${lastResponseStats.time}`;
+                statReferences.textContent = `References: ${lastResponseStats.references_loaded.join(', ') || '-'}`;
+
+                currentResponseDiv = null;
+            }
+            scrollToBottom();
+        }
+
+        function showLoading(show, step = '') {
+            if (show) {
+                loadingIndicator.classList.remove('hidden');
+                loadingStepEl.textContent = step;
+                toolsUsedEl.textContent = '';
+            } else {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
         }
 
         function renderContent(text) {
@@ -194,12 +377,6 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
-        }
-
-        function finishResponse() {
-            sendBtn.disabled = false;
-            currentResponseDiv = null;
-            scrollToBottom();
         }
 
         function setMode(btn) {
@@ -233,6 +410,7 @@
             ws.send(JSON.stringify({ type: 'reset' }));
             clearChat();
             showToast('Session reset');
+            resetStats();
         }
 
         function clearChat() {
@@ -243,6 +421,14 @@
                     <p class="text-gray-500 text-sm mt-2">Sesi baru. Kirimkan teks untuk diterjemahkan.</p>
                 </div>
             `;
+            resetStats();
+        }
+
+        function resetStats() {
+            statTokens.textContent = 'Tokens: 0';
+            statModel.textContent = 'Model: -';
+            statTime.textContent = 'Time: -';
+            statReferences.textContent = 'References: -';
         }
 
         function showToast(msg, type = 'success') {
