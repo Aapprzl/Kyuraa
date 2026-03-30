@@ -1,0 +1,21 @@
+# LLM Provider
+google-genai>=1.0.0          # Google Gemini API
+
+# Gateway & Web
+fastapi>=0.111.0              # Gateway server
+uvicorn[standard]>=0.29.0    # ASGI server
+websockets>=12.0             # WebSocket support
+
+# Data & Parsing
+pyyaml>=6.0                   # Baca frontmatter SKILL.md
+python-frontmatter>=1.1.0    # Parse YAML frontmatter markdown
+python-dotenv>=1.0.0         # Load API key dari .env
+
+# Utilities
+aiofiles>=23.0                # Async file I/O
+python-docx>=1.1.0           # Buat/baca file Word .docx
+chardet>=5.2.0               # Deteksi encoding file Arab
+
+# Testing
+pytest>=8.0                   # Testing
+pytest-asyncio>=0.23.0       # Async test support

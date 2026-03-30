@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penerjemah Arab-Indonesia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@400;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        arabic: ['Amiri', 'Noto Sans Arabic', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-gray-900 px-5 py-3 flex justify-between items-center border-b border-gray-800">
+        <h1 class="text-blue-400 font-semibold text-sm flex items-center gap-2">
+            <span>🕌</span>
+            <span>Penerjemah Arab-Indonesia</span>
+        </h1>
+        <div class="flex items-center gap-3">
+            <span id="session-id" class="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full">...</span>
+            <div id="connection-dot" class="w-2 h-2 rounded-full bg-red-500"></div>
+        </div>
+    </header>
+
+    <!-- Controls -->
+    <div class="bg-gray-900 px-5 py-3 border-b border-gray-800 flex flex-wrap gap-4 items-center">
+        <!-- Mode -->
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500 uppercase">Mode:</span>
+            <div class="flex gap-1">
+                <button data-mode="linguistic" onclick="setMode(this)" class="mode-btn active bg-green-700 text-white text-xs px-3 py-1 rounded-md">Linguistic</button>
+                <button data-mode="default" onclick="setMode(this)" class="mode-btn bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-md">Default</button>
+                <button data-mode="translation-only" onclick="setMode(this)" class="mode-btn bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-md">Translation</button>
+            </div>
+        </div>
+
+        <!-- Style -->
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500 uppercase">Gaya:</span>
+            <div class="flex gap-1">
+                <button data-style="akademik" onclick="setStyle(this)" class="style-btn active bg-blue-700 text-white text-xs px-3 py-1 rounded-md">Akademik</button>
+                <button data-style="semi-formal" onclick="setStyle(this)" class="style-btn bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-md">Semi</button>
+                <button data-style="non-formal" onclick="setStyle(this)" class="style-btn bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-md">Non-formal</button>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-2 ml-auto">
+            <button onclick="saveToFile()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-1 rounded-md">💾 Simpan</button>
+            <button onclick="resetSession()" class="bg-red-900 hover:bg-red-800 text-red-300 text-xs px-3 py-1 rounded-md">🔄 Reset</button>
+            <button onclick="clearChat()" class="bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs px-3 py-1 rounded-md">🗑️ Clear</button>
+        </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="chat-container" class="flex-1 overflow-y-auto p-5 space-y-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 max-w-xl">
+            <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded mb-2 inline-block">ASSISTANT</span>
+            <p class="text-gray-300">Assalamu'alaikum! 👋</p>
+            <p class="text-gray-500 text-sm mt-2">Pilih mode dan gaya, lalu kirimkan teks untuk diterjemahkan.</p>
+        </div>
+    </div>
+
+    <!-- Input -->
+    <div class="bg-gray-900 p-4 border-t border-gray-800">
+        <div class="max-w-2xl mx-auto flex gap-3">
+            <textarea id="message-input" rows="1" placeholder="Ketik pesan... (contoh: terjemahkan ke Arab: metodologi penelitian)"
+                class="flex-1 bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500"></textarea>
+            <button id="send-btn" onclick="sendMessage()" class="bg-green-700 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium">Kirim</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-green-700 text-white px-5 py-2 rounded-lg text-sm opacity-0 transition-opacity pointer-events-none"></div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sessionIdEl = document.getElementById('session-id');
+        const connectionDot = document.getElementById('connection-dot');
+        const toast = document.getElementById('toast');
+
+        let ws = null;
+        let sessionId = 's-' + Date.now();
+        let isConnected = false;
+        let selectedMode = 'linguistic';
+        let selectedStyle = 'akademik';
+        let currentContent = '';
+        let currentResponseDiv = null;
+
+        function connect() {
+            sessionId = 's-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+            sessionIdEl.textContent = sessionId.substring(0, 18) + '...';
+            
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}/ws/${sessionId}`);
+
+            ws.onopen = () => {
+                isConnected = true;
+                connectionDot.classList.remove('bg-red-500');
+                connectionDot.classList.add('bg-green-500');
+                showToast('Connected', 'info');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'token') appendToken(data.content);
+                else if (data.type === 'done') finishResponse();
+                else if (data.type === 'error') { showError(data.message); finishResponse(); }
+                else if (data.type === 'file_saved') showToast('File saved: ' + data.path.split('\\').pop());
+            };
+
+            ws.onclose = () => {
+                isConnected = false;
+                connectionDot.classList.remove('bg-green-500');
+                connectionDot.classList.add('bg-red-500');
+                showToast('Disconnected - Reconnecting...', 'error');
+                setTimeout(connect, 3000);
+            };
+        }
+
+        function sendMessage() {
+            let content = messageInput.value.trim();
+            if (!content || !isConnected) return;
+
+            content = `[${selectedMode.toUpperCase()}] [${selectedStyle.toUpperCase()}] ${content}`;
+            
+            const userDiv = document.createElement('div');
+            userDiv.className = 'bg-blue-600 text-white rounded-lg p-3 max-w-xl ml-auto';
+            userDiv.textContent = messageInput.value.trim();
+            chatContainer.appendChild(userDiv);
+
+            messageInput.value = '';
+            sendBtn.disabled = true;
+            startResponse();
+
+            ws.send(JSON.stringify({ type: 'message', content }));
+            scrollToBottom();
+        }
+
+        function startResponse() {
+            currentContent = '';
+            currentResponseDiv = document.createElement('div');
+            currentResponseDiv.className = 'bg-gray-900 border border-gray-800 rounded-lg p-4 max-w-xl';
+            currentResponseDiv.innerHTML = `
+                <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded mb-2 inline-block">${selectedMode.toUpperCase()}</span>
+                <div class="response-content text-gray-200 whitespace-pre-wrap"></div>
+            `;
+            chatContainer.appendChild(currentResponseDiv);
+        }
+
+        function appendToken(text) {
+            if (!currentResponseDiv) return;
+            currentContent += text;
+            const contentDiv = currentResponseDiv.querySelector('.response-content');
+            contentDiv.innerHTML = renderContent(currentContent);
+            scrollToBottom();
+        }
+
+        function renderContent(text) {
+            const arabicRegex = /[\u0600-\u06FF\u0750-\u077F]+[^\n<>]*/g;
+            let result = '';
+            let lastIndex = 0;
+            let match;
+
+            while ((match = arabicRegex.exec(text)) !== null) {
+                if (match.index > lastIndex) {
+                    result += escapeHtml(text.substring(lastIndex, match.index));
+                }
+                result += `<span class="font-arabic text-xl block text-right my-3 p-3 bg-gray-950 rounded" dir="rtl" lang="ar">${match[0]}</span>`;
+                lastIndex = match.index + match[0].length;
+            }
+
+            if (lastIndex < text.length) {
+                result += escapeHtml(text.substring(lastIndex));
+            }
+
+            return result || escapeHtml(text);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function finishResponse() {
+            sendBtn.disabled = false;
+            currentResponseDiv = null;
+            scrollToBottom();
+        }
+
+        function setMode(btn) {
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                b.classList.remove('bg-green-700', 'text-white');
+                b.classList.add('bg-gray-800', 'text-gray-400');
+            });
+            btn.classList.remove('bg-gray-800', 'text-gray-400');
+            btn.classList.add('bg-green-700', 'text-white');
+            selectedMode = btn.dataset.mode;
+        }
+
+        function setStyle(btn) {
+            document.querySelectorAll('.style-btn').forEach(b => {
+                b.classList.remove('bg-blue-700', 'text-white');
+                b.classList.add('bg-gray-800', 'text-gray-400');
+            });
+            btn.classList.remove('bg-gray-800', 'text-gray-400');
+            btn.classList.add('bg-blue-700', 'text-white');
+            selectedStyle = btn.dataset.style;
+        }
+
+        function saveToFile() {
+            if (!isConnected) { showError('Not connected'); return; }
+            const filename = prompt('Nama file:', `terjemahan_${Date.now()}.txt`);
+            if (filename) ws.send(JSON.stringify({ type: 'save', filename }));
+        }
+
+        function resetSession() {
+            if (!isConnected) return;
+            ws.send(JSON.stringify({ type: 'reset' }));
+            clearChat();
+            showToast('Session reset');
+        }
+
+        function clearChat() {
+            chatContainer.innerHTML = `
+                <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 max-w-xl">
+                    <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded mb-2 inline-block">ASSISTANT</span>
+                    <p class="text-gray-300">Assalamu'alaikum! 👋</p>
+                    <p class="text-gray-500 text-sm mt-2">Sesi baru. Kirimkan teks untuk diterjemahkan.</p>
+                </div>
+            `;
+        }
+
+        function showToast(msg, type = 'success') {
+            toast.textContent = msg;
+            toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-2 rounded-lg text-sm ${type === 'error' ? 'bg-red-700' : 'bg-green-700'} text-white opacity-0 transition-opacity pointer-events-none`;
+            toast.classList.add('opacity-100');
+            setTimeout(() => toast.classList.remove('opacity-100'), 3000);
+        }
+
+        function showError(msg) { showToast(msg, 'error'); }
+        function scrollToBottom() { chatContainer.scrollTop = chatContainer.scrollHeight; }
+
+        messageInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        });
+
+        messageInput.addEventListener('input', () => {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+        });
+
+        connect();
+    </script>
+</body>
+</html>
