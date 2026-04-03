@@ -23,6 +23,14 @@ class GatewayServer:
         self._setup_routes()
 
     def _setup_routes(self):
+        @self._app.get("/info")
+        async def info():
+            import os
+            return {
+                "model": os.environ.get("AGENT_MODEL", "unknown"),
+                "version": "1.0.0"
+            }
+
         @self._app.get("/")
         async def index():
             return FileResponse("src/gateway/static/index.html")
