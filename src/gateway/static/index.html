@@ -507,29 +507,100 @@
 
         // --- Render Helpers ---
         function renderContent(text) {
-            // Regex for Arabic blocks (captures strings of Arabic characters including punctuation and diacritics)
-            const arabicRegex = /([\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s\d.,!?;:()[\]{}]*)/g;
+            if (!text) return '';
             
-            const parts = text.split(arabicRegex);
-            let html = '';
-            
-            parts.forEach(part => {
-                if (!part) return;
-                // Check if part is Arabic (check first non-space character)
-                const isArabic = /[\u0600-\u06FF]/.test(part);
+            // 1. Pre-process to handle orphan punctuation and symbols
+            // Merge lines that are just symbols with previous lines
+            let rawLines = text.split('\n');
+            let mergedLines = [];
+            for (let i = 0; i < rawLines.length; i++) {
+                let line = rawLines[i].trim();
+                // Merge if line is just a symbol, or if previous line ended with an opener '('
+                const isOrphan = (line === ')' || line === '(' || line === '/' || line === '→' || line === ':');
+                const lastLineEndsWithOpener = mergedLines.length > 0 && mergedLines[mergedLines.length - 1].trim().endsWith('(');
                 
-                if (isArabic) {
-                    html += `<div class="arabic-block p-4 rounded-2xl text-2xl mb-4 font-normal shadow-inner" dir="rtl">${part.trim()}</div>`;
+                if ((isOrphan || lastLineEndsWithOpener) && mergedLines.length > 0) {
+                    // Avoid duplicate spaces if already present
+                    const sep = mergedLines[mergedLines.length - 1].endsWith(' ') ? '' : ' ';
+                    mergedLines[mergedLines.length - 1] += sep + rawLines[i].trim();
                 } else {
-                    // Handle markdown-like formatting simply
-                    let processed = escapeHtml(part)
-                        .replace(/\*\*(.*?)\*\*/g, '<b class="text-white font-bold">$1</b>')
-                        .replace(/^- (.*)/gm, '<div class="flex gap-2 pl-2 text-slate-400"><span>•</span> <span>$1</span></div>');
-                    html += `<span>${processed}</span>`;
+                    mergedLines.push(rawLines[i]);
+                }
+            }
+
+            let html = '';
+            mergedLines.forEach(line => {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                    html += '<div class="h-2"></div>';
+                    return;
+                }
+
+                // A. Section Header Detection (Emoji 📝🎯📋🔍🌐📄📖)
+                const headerEmojis = ['📝', '🎯', '📋', '🔍', '🌐', '📄', '📖'];
+                const isHeader = headerEmojis.some(e => trimmed.startsWith(e));
+                if (isHeader) {
+                    html += `<div class="mt-6 mb-3 pt-4 border-t border-white/5 text-[10px] font-extrabold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                                ${trimmed}
+                            </div>`;
+                    return;
+                }
+
+                // B. List Item Detection (•)
+                if (trimmed.startsWith('•')) {
+                    let content = trimmed.substring(1).trim();
+                    html += `<div class="flex gap-2 pl-2 mb-2 text-slate-300 text-sm leading-relaxed">
+                                <span class="text-cyan-500 font-bold">•</span>
+                                <span>${processInlineArabic(content)}</span>
+                            </div>`;
+                    return;
+                }
+
+                // C. Dash Item Detection (-) - Force Inline
+                if (trimmed.startsWith('-')) {
+                    let content = trimmed.substring(1).trim();
+                    html += `<div class="flex gap-2 pl-2 mb-2 text-slate-300 text-sm leading-relaxed">
+                                <span class="text-slate-500 font-bold">—</span>
+                                <span>${processInlineArabic(content)}</span>
+                            </div>`;
+                    return;
+                }
+
+                // D. Main Arabic Block Detection
+                // Condition: Pure Arabic, NO prefix (-, •), NO Latin, and >= 3 words
+                const hasArabicArr = trimmed.match(/[\u0600-\u06FF]/g);
+                const hasLatin = /[a-zA-Z]/.test(trimmed);
+                const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+                const arabicWordCount = words.filter(w => /[\u0600-\u06FF]/.test(w)).length;
+                
+                if (hasArabicArr && !hasLatin && arabicWordCount >= 3) {
+                    html += `<div class="arabic-block p-5 rounded-2xl text-2xl mb-4 font-normal shadow-inner leading-relaxed" dir="rtl">
+                                ${trimmed}
+                            </div>`;
+                } else {
+                    // E. Default / Mixed / Inline Content
+                    html += `<div class="mb-3 text-sm leading-relaxed text-slate-300">
+                                ${processInlineArabic(trimmed)}
+                            </div>`;
                 }
             });
-            
+
             return html;
+        }
+
+        /**
+         * Helper to wrap Arabic words in amber color without creating a block
+         */
+        function processInlineArabic(text) {
+            let processed = escapeHtml(text);
+            
+            // Handle markdown bold
+            processed = processed.replace(/\*\*(.*?)\*\*/g, '<b class="text-white font-bold">$1</b>');
+
+            // Wrap any Arabic sequence in amber span
+            // Matches Arabic characters, including marks/vowels
+            return processed.replace(/([\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+)/g, 
+                '<span class="font-arabic text-amber-500 mx-0.5">$1</span>');
         }
 
         function renderGlossary(terms) {
