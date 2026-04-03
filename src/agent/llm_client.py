@@ -3,14 +3,15 @@ import time
 from pathlib import Path
 from typing import Any, Generator, Sequence
 
-from google import genai
+from openai import OpenAI
 
 
 def _load_env():
     env_path = Path(".env")
     if env_path.exists():
         for line in env_path.read_text(encoding="utf-8").splitlines():
-            if "=" in line:
+            line = line.strip()
+            if "=" in line and not line.startswith("#"):
                 key, _, value = line.partition("=")
                 os.environ.setdefault(key.strip(), value.strip())
 
@@ -26,12 +27,18 @@ class LLMClient:
         max_tokens: int | None = None,
         timeout: int = 120,
     ):
-        self._api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
         if not self._api_key:
-            raise ValueError("GEMINI_API_KEY is required. Set it in .env or pass api_key parameter.")
+            raise ValueError(
+                "OPENROUTER_API_KEY is required. Set it in .env or pass api_key parameter."
+            )
 
-        self._client = genai.Client(api_key=self._api_key)
-        self._model_name = model or os.environ.get("AGENT_MODEL", "gemini-2.0-flash")
+        self._client = OpenAI(
+            api_key=self._api_key,
+            base_url="https://openrouter.ai/api/v1",
+            timeout=timeout,
+        )
+        self._model_name = model or os.environ.get("AGENT_MODEL", "qwen/qwen3.6-plus:free")
         self._max_tokens = max_tokens or 4096
         self._timeout = timeout
 
@@ -49,27 +56,26 @@ class LLMClient:
             else:
                 print(f"[WARN] Context length ({tokens} tokens) exceeds recommended limit")
 
-        full_prompt = self._build_prompt(system, list(messages))
+        openai_messages = self._build_openai_messages(system, list(messages))
 
         for attempt in range(3):
             try:
-                response = self._client.models.generate_content(
+                response = self._client.chat.completions.create(
                     model=self._model_name,
-                    contents=full_prompt,
-                    config=genai.types.GenerateContentConfig(
-                        system_instruction=system,
-                        max_output_tokens=self._max_tokens,
-                        temperature=0.7,
-                    ),
+                    messages=openai_messages,
+                    max_tokens=self._max_tokens,
+                    temperature=0.7,
                 )
+                content = response.choices[0].message.content or ""
+                usage = response.usage
                 return {
-                    "content": response.text,
+                    "content": content,
                     "model": self._model_name,
                     "usage": {
-                        "input_tokens": tokens,
-                        "output_tokens": self.count_tokens([{"content": response.text or ""}]),
+                        "input_tokens": usage.prompt_tokens if usage else tokens,
+                        "output_tokens": usage.completion_tokens if usage else self.count_tokens([{"content": content}]),
                     },
-                    "stop_reason": str(response.finish_reason) if hasattr(response, 'finish_reason') else "stop",
+                    "stop_reason": response.choices[0].finish_reason or "stop",
                 }
             except Exception as e:
                 error_str = str(e)
@@ -92,16 +98,15 @@ class LLMClient:
                 else:
                     raise
 
-    def _build_prompt(self, system: str, messages: list[dict[str, str]]) -> str:
-        parts = []
+    def _build_openai_messages(
+        self, system: str, messages: list[dict[str, str]]
+    ) -> list[dict[str, str]]:
+        result = [{"role": "system", "content": system}]
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            if role == "user":
-                parts.append(f"User: {content}")
-            else:
-                parts.append(f"Assistant: {content}")
-        return "\n\n".join(parts)
+            result.append({"role": role, "content": content})
+        return result
 
     def _truncate_history(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
         half = len(messages) // 2
@@ -117,21 +122,20 @@ class LLMClient:
             print(f"[WARN] Context too long ({tokens} tokens), truncating history for stream...")
             messages = self._truncate_history(list(messages))
 
-        full_prompt = self._build_prompt(system, list(messages))
+        openai_messages = self._build_openai_messages(system, list(messages))
 
         try:
-            response = self._client.models.generate_content_stream(
+            response = self._client.chat.completions.create(
                 model=self._model_name,
-                contents=full_prompt,
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=system,
-                    max_output_tokens=self._max_tokens,
-                    temperature=0.7,
-                ),
+                messages=openai_messages,
+                max_tokens=self._max_tokens,
+                temperature=0.7,
+                stream=True,
             )
             for chunk in response:
-                if hasattr(chunk, "text") and chunk.text:
-                    yield chunk.text
+                delta = chunk.choices[0].delta
+                if hasattr(delta, "content") and delta.content:
+                    yield delta.content
         except Exception as e:
             if "timeout" in str(e).lower() or "deadline" in str(e).lower():
                 raise TimeoutError(f"Stream request timed out after {self._timeout}s")

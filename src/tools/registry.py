@@ -5,10 +5,12 @@ from typing import Any, Callable
 from src.memory.glossary_store import GlossaryStore
 
 
+# Path yang diizinkan untuk akses file (relatif terhadap working directory)
+_BASE = Path.cwd()
 ALLOWED_PATHS = [
-    "C:\\agent-arab\\workspace\\output",
-    "C:\\agent-arab\\workspace\\glossary",
-    "C:\\Users\\Muh Aprizal\\Documents\\terjemahan",
+    str(_BASE / "workspace" / "output"),
+    str(_BASE / "workspace" / "glossary"),
+    str(_BASE / "workspace" / "memory"),
 ]
 
 

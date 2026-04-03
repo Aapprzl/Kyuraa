@@ -1,5 +1,5 @@
 # LLM Provider
-google-genai>=1.0.0          # Google Gemini API
+openai>=1.0.0                # OpenRouter (OpenAI-compatible API)
 
 # Gateway & Web
 fastapi>=0.111.0              # Gateway server
