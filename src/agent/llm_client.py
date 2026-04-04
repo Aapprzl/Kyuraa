@@ -127,7 +127,7 @@ class LLMClient:
         self,
         system: str,
         messages: Sequence[dict[str, str]],
-    ) -> Generator[str, None, None]:
+    ) -> Generator[tuple[str, dict | None], None, None]:
         tokens = self.count_tokens(messages)
         if tokens > self._max_tokens * 3:
             log("warn", f"Context too long ({tokens} tokens), truncating history for stream...")
@@ -145,16 +145,20 @@ class LLMClient:
                 temperature=0.7,
                 stream=True,
             )
-            # Timing for stream is tricky, we log when we start receiving
             first_token = True
+            usage = None
             for chunk in response:
                 if first_token:
                     duration = round(time.time() - start_time, 2)
                     log("llm", f"First token received — {duration}s")
                     first_token = False
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    usage = chunk.usage
                 delta = chunk.choices[0].delta
                 if hasattr(delta, "content") and delta.content:
-                    yield delta.content
+                    yield (delta.content, usage)
+            if usage is None:
+                log("llm", "Usage not captured during stream, may not be available for this model")
         except Exception as e:
             log("error", f"LLM Stream error: {e}")
             if "timeout" in str(e).lower() or "deadline" in str(e).lower():

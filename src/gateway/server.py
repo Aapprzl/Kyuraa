@@ -131,16 +131,27 @@ class GatewayServer:
                         user_input = message.get("content", "")
                         self._session_buffers[session_id] = []
 
-                        for token in agent.run_stream(user_input):
+                        captured_usage = None
+                        for item in agent.run_stream(user_input):
+                            token = item[0] if isinstance(item, tuple) else item
+                            usage = item[1] if isinstance(item, tuple) and len(item) > 1 else None
+                            if usage:
+                                captured_usage = usage
                             await websocket.send_json({
                                 "type": "token",
                                 "content": token,
                             })
                             self._session_buffers[session_id].append(token)
 
+                        input_tokens = captured_usage.prompt_tokens if captured_usage else 0
+                        output_tokens = captured_usage.completion_tokens if captured_usage else 0
                         await websocket.send_json({
                             "type": "done",
                             "session_id": session_id,
+                            "usage": {
+                                "input_tokens": input_tokens,
+                                "output_tokens": output_tokens,
+                            },
                         })
 
                     elif msg_type == "reset":

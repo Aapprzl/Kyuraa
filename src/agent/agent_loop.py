@@ -98,7 +98,7 @@ class AgentLoop:
             "tool_results": tool_results,
         }
 
-    def run_stream(self, user_input: str) -> Generator[str, None, dict[str, Any]]:
+    def run_stream(self, user_input: str) -> Generator[tuple[str, dict | None], None, dict[str, Any]]:
         log("agent", f"Processing request — session: {self._session_id}")
         lang = self._detect_language(user_input)
         style = self._detect_style(user_input)
@@ -117,9 +117,12 @@ class AgentLoop:
         messages = self._prompt_builder.build_messages(history, user_input)
 
         full_response = []
-        for token in self._llm_client.stream(system=system, messages=messages):
+        captured_usage = None
+        for token, usage in self._llm_client.stream(system=system, messages=messages):
             full_response.append(token)
-            yield token
+            if usage:
+                captured_usage = usage
+            yield (token, usage)
 
         assistant_content = "".join(full_response)
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
@@ -134,6 +137,7 @@ class AgentLoop:
             "response": assistant_content,
             "references_loaded": list(references.keys()),
             "tool_results": tool_results,
+            "usage": captured_usage,
         }
 
     def _detect_language(self, text: str) -> str:

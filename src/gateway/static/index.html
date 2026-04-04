@@ -268,6 +268,44 @@
                         </div>
                     </div>
 
+                    <!-- Usage Statistics Card -->
+                    <div class="mt-6 p-5 rounded-2xl bg-white/5 border border-white/5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                                <span>📊</span> Usage Statistics
+                            </h3>
+                            <button onclick="resetUsageStats()" class="text-[9px] font-bold text-red-500/60 hover:text-red-500 uppercase transition-colors">
+                                Reset
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3 text-[10px]">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Total Requests</span>
+                                <span id="usage-requests" class="text-slate-300 font-mono">0</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Total Time</span>
+                                <span id="usage-time" class="text-slate-300 font-mono">0s</span>
+                            </div>
+                        </div>
+                        
+                        <div class="border-t border-white/5 pt-3 space-y-2">
+                            <div class="flex justify-between text-[10px]">
+                                <span class="text-emerald-500/80">⬆ Input Tokens</span>
+                                <span id="usage-input" class="text-slate-300 font-mono">0</span>
+                            </div>
+                            <div class="flex justify-between text-[10px]">
+                                <span class="text-amber-500/80">⬇ Output Tokens</span>
+                                <span id="usage-output" class="text-slate-300 font-mono">0</span>
+                            </div>
+                            <div class="flex justify-between text-[10px] font-bold pt-2 border-t border-white/5">
+                                <span class="text-cyan-400">∑ Total Tokens</span>
+                                <span id="usage-total" class="text-cyan-300 font-mono">0</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="pt-4">
                         <button id="save-settings-btn" onclick="validateAndSaveSettings()" 
                             class="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-sm shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2">
@@ -356,11 +394,23 @@
     <footer id="stats-bar" class="h-8 bg-brand-base border-t border-white/5 px-6 flex items-center justify-between shrink-0 z-30">
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
-                <span class="text-cyan-500 opacity-50">🔤</span> <span id="stat-tokens">0 Tokens</span>
+                <span class="text-cyan-500 opacity-50">📡</span> <span id="stat-requests">Req: 0</span>
             </div>
             <div class="h-2 w-px bg-white/5"></div>
             <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
-                <span class="text-amber-500 opacity-50">⏱</span> <span id="stat-time">0s</span>
+                <span class="text-emerald-500 opacity-50">⬆</span> <span id="stat-input">In: 0</span>
+            </div>
+            <div class="h-2 w-px bg-white/5"></div>
+            <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                <span class="text-amber-500 opacity-50">⬇</span> <span id="stat-output">Out: 0</span>
+            </div>
+            <div class="h-2 w-px bg-white/5"></div>
+            <div class="flex items-center gap-1.5 text-[9px] font-bold text-cyan-400">
+                <span class="opacity-50">∑</span> <span id="stat-total">Total: 0</span>
+            </div>
+            <div class="h-2 w-px bg-white/5"></div>
+            <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                <span class="text-slate-400 opacity-50">⏱</span> <span id="stat-time">0s</span>
             </div>
         </div>
         
@@ -418,9 +468,23 @@
         // Stats
         const statTokens = document.getElementById('stat-tokens');
         const statTime = document.getElementById('stat-time');
+        const statRequests = document.getElementById('stat-requests');
+        const statInput = document.getElementById('stat-input');
+        const statOutput = document.getElementById('stat-output');
+        const statTotal = document.getElementById('stat-total');
         const statModelFull = document.getElementById('stat-model-full');
         const modelBadgeEl = document.getElementById('model-badge');
         const modelNameEl = document.getElementById('model-name');
+
+        // Usage stats elements (Settings page)
+        const usageRequestsEl = document.getElementById('usage-requests');
+        const usageTimeEl = document.getElementById('usage-time');
+        const usageInputEl = document.getElementById('usage-input');
+        const usageOutputEl = document.getElementById('usage-output');
+        const usageTotalEl = document.getElementById('usage-total');
+
+        const USAGE_KEY = 'agent_arab_usage';
+        let totalUsage = { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, totalTimeMs: 0 };
 
         let ws = null;
         let sessionId = 's-' + Date.now();
@@ -435,6 +499,12 @@
         let currentResponseDiv = null;
         let startTime = null;
         let sidebarOpen = false;
+        
+        // Session stats tracking
+        let sessionRequests = 0;
+        let sessionInputTokens = 0;
+        let sessionOutputTokens = 0;
+        let sessionTotalTokens = 0;
 
         const HISTORY_KEY = 'agent_arab_history';
 
@@ -638,10 +708,35 @@
             if (currentResponseDiv) {
                 saveToHistory(currentPrompt, currentContent);
                 const duration = getElapsedTime();
-                const tokens = data.usage?.output_tokens || Math.ceil(currentContent.length / 4);
-                const refs = (data.references_loaded || []).length;
-                statTokens.textContent = `${tokens} Tokens`;
+                
+                // Get input tokens from API, or estimate if 0
+                let inputTokens = data.usage?.input_tokens || 0;
+                if (inputTokens === 0) {
+                    // Estimate: prompt + overhead for system/history (~500-1000 chars base)
+                    const baseOverhead = 800;
+                    inputTokens = Math.ceil((currentPrompt.length + baseOverhead) / 4);
+                }
+                
+                const outputTokens = data.usage?.output_tokens || Math.ceil(currentContent.length / 4);
+                const totalTokens = inputTokens + outputTokens;
+                
+                // Accumulate session stats
+                sessionRequests++;
+                sessionInputTokens += inputTokens;
+                sessionOutputTokens += outputTokens;
+                sessionTotalTokens += totalTokens;
+                
+                // Update UI
+                statRequests.textContent = `Req: ${sessionRequests}`;
+                statInput.textContent = `In: ${formatNumber(sessionInputTokens)}`;
+                statOutput.textContent = `Out: ${formatNumber(sessionOutputTokens)}`;
+                statTotal.textContent = `Total: ${formatNumber(sessionTotalTokens)}`;
                 statTime.textContent = duration;
+                
+                // Save to persistent usage stats
+                const timeMs = startTime ? (Date.now() - startTime) : 0;
+                addUsageStats(inputTokens, outputTokens, timeMs);
+                
                 currentResponseDiv = null;
             }
             renderHistory();
@@ -721,10 +816,68 @@
                 chatView.classList.add('hidden');
                 settingsView.classList.remove('hidden');
                 fetchSettings();
+                loadUsageStats();
             } else {
                 chatView.classList.remove('hidden');
                 settingsView.classList.add('hidden');
             }
+        }
+
+        // --- Usage Stats Functions ---
+        function loadUsageStats() {
+            try {
+                const saved = localStorage.getItem(USAGE_KEY);
+                if (saved) {
+                    totalUsage = JSON.parse(saved);
+                }
+            } catch (e) {
+                totalUsage = { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, totalTimeMs: 0 };
+            }
+            updateUsageUI();
+        }
+
+        function saveUsageStats() {
+            localStorage.setItem(USAGE_KEY, JSON.stringify(totalUsage));
+            updateUsageUI();
+        }
+
+        function updateUsageUI() {
+            if (usageRequestsEl) usageRequestsEl.textContent = formatNumber(totalUsage.requests);
+            if (usageInputEl) usageInputEl.textContent = formatNumber(totalUsage.inputTokens);
+            if (usageOutputEl) usageOutputEl.textContent = formatNumber(totalUsage.outputTokens);
+            if (usageTotalEl) usageTotalEl.textContent = formatNumber(totalUsage.totalTokens);
+            if (usageTimeEl) usageTimeEl.textContent = formatDuration(totalUsage.totalTimeMs);
+        }
+
+        function addUsageStats(inputTokens, outputTokens, timeMs) {
+            totalUsage.requests++;
+            totalUsage.inputTokens += inputTokens;
+            totalUsage.outputTokens += outputTokens;
+            totalUsage.totalTokens += (inputTokens + outputTokens);
+            totalUsage.totalTimeMs += timeMs;
+            saveUsageStats();
+        }
+
+        function resetUsageStats() {
+            showConfirmModal(
+                'Reset Usage Stats',
+                'Semua statistik usage akan dihapus. Lanjutkan?',
+                () => {
+                    totalUsage = { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, totalTimeMs: 0 };
+                    saveUsageStats();
+                    showToast('Usage stats direset', 'info');
+                },
+                'Reset Stats'
+            );
+        }
+
+        function formatDuration(ms) {
+            if (ms < 1000) return '0s';
+            const seconds = Math.floor(ms / 1000);
+            if (seconds < 60) return `${seconds}s`;
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${minutes}m ${secs}s`;
         }
 
         async function fetchSettings() {
@@ -966,7 +1119,18 @@
             chatContainer.appendChild(welcome); 
             resetStats(); 
         }
-        function resetStats() { statTokens.textContent = '0 Tokens'; statTime.textContent = '0s'; statRefs.textContent = '0 Refs'; }
+        function resetStats() { 
+            sessionRequests = 0; 
+            sessionInputTokens = 0; 
+            sessionOutputTokens = 0; 
+            sessionTotalTokens = 0;
+            if (statRequests) statRequests.textContent = 'Req: 0';
+            if (statInput) statInput.textContent = 'In: 0';
+            if (statOutput) statOutput.textContent = 'Out: 0';
+            if (statTotal) statTotal.textContent = 'Total: 0';
+            if (statTime) statTime.textContent = '0s';
+        }
+        function formatNumber(num) { return num.toLocaleString('id-ID'); }
         function getElapsedTime() { if (!startTime) return '0s'; return Math.floor((Date.now() - startTime) / 1000) + 's'; }
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         function scrollToBottom() { chatContainer.scrollTop = chatContainer.scrollHeight; }
@@ -974,6 +1138,7 @@
         messageInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
         messageInput.addEventListener('input', () => { messageInput.style.height = 'auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px'; const len = messageInput.value.length; if (len > 0) { charCountEl.textContent = `${len} characters`; charCountEl.classList.remove('hidden'); } else { charCountEl.classList.add('hidden'); } });
         if (window.innerWidth > 1024) toggleSidebar();
+        loadUsageStats();
         connect();
     </script>
 </body>
