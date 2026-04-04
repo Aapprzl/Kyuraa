@@ -107,6 +107,10 @@
             transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
+        #disconnected-overlay {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
         .modal-backdrop {
             background-color: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px);
@@ -311,6 +315,28 @@
         </aside>
     </main>
 
+    <!-- Custom Confirm Modal -->
+    <div id="confirm-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-6 hidden">
+        <div class="absolute inset-0 modal-backdrop" onclick="closeConfirmModal()"></div>
+        <div class="relative w-full max-w-sm bg-brand-surface border border-white/10 rounded-[24px] shadow-2xl overflow-hidden animate-modal">
+            <div class="p-6 space-y-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                        <span class="text-lg">⚠️</span>
+                    </div>
+                    <div>
+                        <h3 id="confirm-title" class="text-lg font-bold text-white">Konfirmasi</h3>
+                    </div>
+                </div>
+                <p id="confirm-message" class="text-sm text-slate-400 pl-[46px]">Apakah Anda yakin?</p>
+            </div>
+            <div class="h-14 border-t border-white/5 px-4 flex items-center justify-end gap-3 bg-white/2">
+                <button id="confirm-cancel-btn" onclick="closeConfirmModal()" class="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-bold transition-all">Batal</button>
+                <button id="confirm-ok-btn" class="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold shadow-lg shadow-cyan-500/20 transition-all">Ya, Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Detail Riwayat -->
     <div id="history-modal" class="fixed inset-0 z-50 flex items-center justify-center p-6 hidden">
         <div class="absolute inset-0 modal-backdrop" onclick="closeModal()"></div>
@@ -365,6 +391,36 @@
         </div>
     </footer>
 
+    <!-- Disconnected Overlay -->
+    <div id="disconnected-overlay" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center">
+            <div class="text-center space-y-6 animate-fade">
+                <div class="w-20 h-20 mx-auto rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center">
+                    <span class="text-4xl">⚡</span>
+                </div>
+                <div class="space-y-2">
+                    <h2 class="text-2xl font-bold text-white">Koneksi Terputus</h2>
+                    <p class="text-slate-400 text-sm max-w-xs mx-auto">Server tidak merespons. Memeriksa koneksi...</p>
+                </div>
+                <div class="flex flex-col items-center gap-3">
+                    <div id="reconnect-countdown" class="text-cyan-400 font-mono text-lg">Mencoba menghubungkan...</div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></div>
+                        <span id="reconnect-attempts" class="text-slate-500 text-xs font-medium">Percobaan 1</span>
+                    </div>
+                    <div class="flex gap-3 mt-4">
+                        <button onclick="manualReconnect()" class="px-6 py-2.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-white text-sm font-bold shadow-lg shadow-cyan-500/30 transition-all flex items-center gap-2">
+                            <span>🔄</span> Sambung Ulang
+                        </button>
+                        <button onclick="reloadPage()" class="px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 text-sm font-bold transition-all">
+                            🔁 Reload Halaman
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Layer -->
     <div id="toast-container" class="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col gap-2 items-center w-full max-w-sm"></div>
 
@@ -391,6 +447,9 @@
         let ws = null;
         let sessionId = 's-' + Date.now();
         let isConnected = false;
+        let isReconnecting = false;
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
         let selectedMode = 'linguistic';
         let selectedStyle = 'akademik';
         let currentPrompt = '';
@@ -424,9 +483,12 @@
 
             ws.onopen = () => {
                 isConnected = true;
+                isReconnecting = false;
+                reconnectAttempts = 0;
                 connectionDot.classList.replace('bg-red-500', 'bg-emerald-500');
                 connectionDot.title = 'Connected';
-                showToast('Agent connected to terminal', 'success');
+                hideDisconnectedOverlay();
+                if (!isReconnecting) showToast('Agent connected to terminal', 'success');
                 fetchModelInfo();
                 renderHistory();
             };
@@ -442,19 +504,93 @@
                 }
             };
 
+            ws.onerror = () => {
+                isConnected = false;
+                connectionDot.classList.replace('bg-emerald-500', 'bg-red-500');
+                connectionDot.title = 'Connection Error';
+            };
+
             ws.onclose = () => {
                 isConnected = false;
                 connectionDot.classList.replace('bg-emerald-500', 'bg-red-500');
                 connectionDot.title = 'Disconnected';
-                showToast('Koneksi terputus. Mencoba menghubungkan kembali...', 'error');
-                setTimeout(connect, 3000);
+                showDisconnectedOverlay();
+                scheduleReconnect();
             };
+        }
+
+        function showDisconnectedOverlay() {
+            const overlay = document.getElementById('disconnected-overlay');
+            const countdown = document.getElementById('reconnect-countdown');
+            const attempts = document.getElementById('reconnect-attempts');
+            if (overlay) {
+                overlay.classList.remove('hidden');
+                attempts.textContent = `Percobaan ${reconnectAttempts}`;
+            }
+        }
+
+        function hideDisconnectedOverlay() {
+            const overlay = document.getElementById('disconnected-overlay');
+            if (overlay) overlay.classList.add('hidden');
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+        }
+
+        function scheduleReconnect() {
+            if (isReconnecting) return;
+            isReconnecting = true;
+            reconnectAttempts++;
+            
+            const countdown = document.getElementById('reconnect-countdown');
+            const attempts = document.getElementById('reconnect-attempts');
+            if (attempts) attempts.textContent = `Percobaan ${reconnectAttempts}`;
+            
+            let seconds = 3;
+            if (countdown) countdown.textContent = `Menghubungi ulang dalam ${seconds} detik...`;
+            
+            const interval = setInterval(() => {
+                seconds--;
+                if (seconds > 0) {
+                    if (countdown) countdown.textContent = `Menghubungi ulang dalam ${seconds} detik...`;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 1000);
+            
+            reconnectTimer = setTimeout(() => {
+                isReconnecting = false;
+                if (countdown) countdown.textContent = 'Mencoba menghubungkan...';
+                connect();
+            }, 3000);
+        }
+
+        function manualReconnect() {
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            isReconnecting = false;
+            reconnectAttempts = 0;
+            const countdown = document.getElementById('reconnect-countdown');
+            if (countdown) countdown.textContent = 'Mencoba menghubungkan...';
+            connect();
+        }
+
+        function reloadPage() {
+            window.location.reload();
         }
 
         // --- Actions ---
         function sendMessage() {
             let userText = messageInput.value.trim();
-            if (!userText || !isConnected) return;
+            if (!userText) return;
+            if (!isConnected) {
+                showToast('Tidak terhubung ke server. Mohon tunggu...', 'error');
+                showDisconnectedOverlay();
+                return;
+            }
 
             if (welcomeState) welcomeState.remove();
 
@@ -680,10 +816,47 @@
         }
 
         function clearAllHistory() {
-            if (confirm('Hapus seluruh riwayat terjemahan?')) {
-                localStorage.removeItem(HISTORY_KEY);
-                renderHistory();
-            }
+            showConfirmModal(
+                'Hapus Semua Riwayat',
+                'Seluruh riwayat terjemahan akan dihapus permanen. Lanjutkan?',
+                () => {
+                    localStorage.removeItem(HISTORY_KEY);
+                    renderHistory();
+                    showToast('Semua riwayat dihapus', 'info');
+                }
+            );
+        }
+
+        function showConfirmModal(title, message, onConfirm, okText = 'Ya, Lanjutkan') {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            const okBtn = document.getElementById('confirm-ok-btn');
+            okBtn.textContent = okText;
+            okBtn.onclick = () => { closeConfirmModal(); onConfirm(); };
+            modal.classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+        }
+
+        function showSaveFileModal(callback) {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').textContent = 'Simpan File';
+            document.getElementById('confirm-message').innerHTML = `
+                <input type="text" id="save-filename" placeholder="nama_file.txt" 
+                    class="w-full mt-2 form-input rounded-xl px-4 py-2 text-sm text-slate-200 outline-none font-mono">
+            `;
+            const okBtn = document.getElementById('confirm-ok-btn');
+            okBtn.textContent = 'Simpan';
+            okBtn.onclick = () => {
+                const filename = document.getElementById('save-filename').value.trim() || `terjemahan_${Date.now()}.txt`;
+                closeConfirmModal();
+                callback(filename);
+            };
+            modal.classList.remove('hidden');
+            setTimeout(() => document.getElementById('save-filename')?.focus(), 100);
         }
 
         // --- Modals & Popups ---
@@ -783,9 +956,38 @@
         }
 
         function quickPrompt(text) { messageInput.value = text; messageInput.focus(); messageInput.dispatchEvent(new Event('input')); }
-        function saveToFile() { if (!isConnected) return; const filename = prompt('Nama file output:', `terjemahan_${Date.now()}.txt`); ws.send(JSON.stringify({ type: 'save', filename: filename || 'output.txt' })); }
-        function resetSession() { if (confirm('Hapus histori sesi ini?')) { ws.send(JSON.stringify({ type: 'reset' })); clearChat(); showToast('Riwayat sesi dihapus', 'info'); } }
-        function clearChat() { chatContainer.innerHTML = ''; const welcome = document.createElement('div'); welcome.id = 'welcome-state'; welcome.className = 'max-w-2xl mx-auto py-12 text-center animate-fade'; welcome.innerHTML = `<div class="inline-block p-4 rounded-3xl bg-cyan-500/10 border border-cyan-500/20 mb-6 shadow-xl shadow-cyan-500/5"><span class="text-4xl">🕋</span></div><h2 class="text-2xl font-extrabold text-white mb-3">Sesi Baru</h2><p class="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">Agent siap menerima teks terjemahan baru.</p>`; chatContainer.appendChild(welcome); resetStats(); }
+        function saveToFile() { 
+            if (!isConnected) return; 
+            showSaveFileModal((filename) => {
+                ws.send(JSON.stringify({ type: 'save', filename: filename }));
+            });
+        }
+        function resetSession() { 
+            showConfirmModal(
+                'Mulai Sesi Baru',
+                'Histori sesi ini akan dihapus. Lanjutkan?',
+                () => {
+                    ws.send(JSON.stringify({ type: 'reset' })); 
+                    clearChat(); 
+                    showToast('Sesi baru dimulai', 'info');
+                },
+                'Mulai Sesi Baru'
+            ); 
+        }
+        function clearChat() { 
+            chatContainer.innerHTML = ''; 
+            const welcome = document.createElement('div'); 
+            welcome.id = 'welcome-state'; 
+            welcome.className = 'flex-1 flex flex-col items-center justify-center text-center animate-fade'; 
+            welcome.innerHTML = `
+                <h2 class="text-4xl font-extrabold text-white mb-4 tracking-tight">Agent Arab</h2>
+                <p class="text-slate-400 text-sm md:text-base max-w-sm mx-auto leading-relaxed opacity-80">
+                    Console AI khusus terjemahan Arab-Indonesia berkualitas akademik. Masukkan teks dan biarkan Agent bekerja.
+                </p>
+            `; 
+            chatContainer.appendChild(welcome); 
+            resetStats(); 
+        }
         function resetStats() { statTokens.textContent = '0 Tokens'; statTime.textContent = '0s'; statRefs.textContent = '0 Refs'; }
         function getElapsedTime() { if (!startTime) return '0s'; return Math.floor((Date.now() - startTime) / 1000) + 's'; }
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
