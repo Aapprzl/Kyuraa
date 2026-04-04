@@ -111,6 +111,23 @@
             background-color: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px);
         }
+
+        /* Settings Style */
+        .settings-card {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .form-input {
+            background: rgba(8, 12, 16, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.2s ease;
+        }
+        .form-input:focus {
+            border-color: #06b6d4;
+            box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.1);
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
@@ -135,6 +152,9 @@
             </div>
             <div id="connection-dot" class="w-2 h-2 rounded-full bg-red-500 shadow-sm" title="Disconnected"></div>
             
+            <button onclick="toggleSettings()" class="ml-2 w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center text-slate-400 transition-colors group" title="Pengaturan">
+                <span class="text-xl group-hover:rotate-90 transition-transform">⚙️</span>
+            </button>
             <button onclick="toggleSidebar()" class="ml-2 w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center text-slate-400 transition-colors group">
                 <span class="text-xl group-hover:scale-110 transition-transform">🕒</span>
             </button>
@@ -179,8 +199,8 @@
 
     <!-- Main Content Area -->
     <main id="main-content" class="flex-1 flex overflow-hidden relative">
-        <!-- Chat Area -->
-        <div class="flex-1 flex flex-col h-full overflow-hidden bg-[radial-gradient(circle_at_50%_-20%,#0f172a,transparent_70%)]">
+        <!-- Chat View -->
+        <div id="chat-view" class="flex-1 flex flex-col h-full overflow-hidden bg-[radial-gradient(circle_at_50%_-20%,#0f172a,transparent_70%)]">
             <div id="chat-container" class="flex-1 overflow-y-auto px-6 py-8 space-y-8">
                 <!-- Welcome State -->
                 <div id="welcome-state" class="max-w-2xl mx-auto py-12 text-center animate-fade">
@@ -222,7 +242,7 @@
             </div>
 
             <!-- Input Bar -->
-            <div class="p-6 shrink-0 z-20">
+            <div id="input-bar" class="p-6 shrink-0 z-20">
                 <div class="max-w-3xl mx-auto relative group">
                     <div class="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-[28px] opacity-10 group-focus-within:opacity-30 blur transition duration-500"></div>
                     <div class="relative bg-brand-surface border border-white/10 rounded-[26px] p-2 flex gap-2 shadow-2xl overflow-hidden focus-within:border-cyan-500/50 transition-all">
@@ -240,6 +260,55 @@
                             Enter untuk kirim · <span class="text-slate-500">Shift+Enter untuk baris baru</span>
                         </p>
                         <div id="char-count" class="text-[10px] text-slate-600 font-mono hidden">0 characters</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div id="settings-view" class="hidden flex-1 overflow-y-auto bg-brand-base p-8 animate-fade">
+            <div class="max-w-xl mx-auto">
+                <button onclick="toggleSettings(false)" class="mb-8 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
+                    <span class="text-lg group-hover:-translate-x-1 transition-transform">←</span>
+                    <span class="text-xs font-bold uppercase tracking-widest">Kembali ke Chat</span>
+                </button>
+
+                <div class="settings-card rounded-[32px] p-8 space-y-8">
+                    <div class="space-y-1">
+                        <h2 class="text-xl font-bold text-white">Pengaturan Utama</h2>
+                        <p class="text-xs text-slate-500">Konfigurasi runtime AI model dan kunci API</p>
+                    </div>
+
+                    <div id="settings-error" class="hidden p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 animate-fade"></div>
+                    <div id="settings-success" class="hidden p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 animate-fade"></div>
+
+                    <div class="space-y-6">
+                        <!-- Model Selection -->
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">AI Model</label>
+                            <input type="text" id="setting-model" placeholder="Contoh: qwen/qwen3.6-plus:free"
+                                class="w-full form-input rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none">
+                        </div>
+
+                        <!-- API Key -->
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">OpenRouter API Key</label>
+                            <div class="relative">
+                                <input type="password" id="setting-api-key" placeholder="Masukkan API Key..."
+                                    class="w-full form-input rounded-2xl px-5 py-3 pr-12 text-sm text-slate-200 outline-none font-mono">
+                                <button onclick="togglePassword('setting-api-key')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                                    👁️
+                                </button>
+                            </div>
+                            <p class="text-[9px] text-slate-600 px-1 italic">Key tidak akan disimpan di localStorage untuk alasan keamanan.</p>
+                        </div>
+                    </div>
+
+                    <div class="pt-4">
+                        <button id="save-settings-btn" onclick="validateAndSaveSettings()" 
+                            class="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-sm shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2">
+                            <span>Simpan & Validasi Koneksi</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -552,6 +621,79 @@
                 copyText(item.output);
                 showToast('Hasil disalin ke clipboard', 'success');
             }
+        }
+
+        // --- Settings Logic ---
+        function toggleSettings(show = true) {
+            const chatView = document.getElementById('chat-view');
+            const settingsView = document.getElementById('settings-view');
+            if (show) {
+                chatView.classList.add('hidden');
+                settingsView.classList.remove('hidden');
+                fetchSettings();
+            } else {
+                chatView.classList.remove('hidden');
+                settingsView.classList.add('hidden');
+            }
+        }
+
+        async function fetchSettings() {
+            try {
+                const r = await fetch('/settings');
+                const data = await r.json();
+                document.getElementById('setting-model').value = data.model;
+                document.getElementById('setting-api-key').value = data.api_key;
+            } catch (e) {
+                console.error('Failed to fetch settings');
+            }
+        }
+
+        async function validateAndSaveSettings() {
+            const model = document.getElementById('setting-model').value.trim();
+            const apiKey = document.getElementById('setting-api-key').value.trim();
+            const btn = document.getElementById('save-settings-btn');
+            const errorEl = document.getElementById('settings-error');
+            const successEl = document.getElementById('settings-success');
+
+            if (!model || !apiKey) {
+                errorEl.textContent = '❌ Model dan API Key wajib diisi.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            errorEl.classList.add('hidden');
+            successEl.classList.add('hidden');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Sedang memvalidasi...';
+
+            try {
+                const r = await fetch('/settings/validate-and-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model, api_key: apiKey })
+                });
+                
+                const data = await r.json();
+                if (r.ok) {
+                    successEl.textContent = data.message;
+                    successEl.classList.remove('hidden');
+                    fetchModelInfo(); // Update header badge
+                } else {
+                    errorEl.textContent = data.detail || '❌ Terjadi kesalahan saat menyimpan.';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                errorEl.textContent = '❌ Tidak dapat terhubung ke server.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Simpan & Validasi Koneksi';
+            }
+        }
+
+        function togglePassword(id) {
+            const el = document.getElementById(id);
+            el.type = el.type === 'password' ? 'text' : 'password';
         }
 
         function deleteHistoryItem(id) {

@@ -3,11 +3,20 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+# Ensure project root is in sys.path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 import uvicorn
+
+
+class SettingsSchema(BaseModel):
+    model: str
+    api_key: str
 
 
 class GatewayServer:
@@ -25,11 +34,71 @@ class GatewayServer:
     def _setup_routes(self):
         @self._app.get("/info")
         async def info():
-            import os
             return {
                 "model": os.environ.get("AGENT_MODEL", "unknown"),
                 "version": "1.0.0"
             }
+
+        @self._app.get("/settings")
+        async def get_settings():
+            model = os.environ.get("AGENT_MODEL", "")
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
+            masked_key = ""
+            if api_key:
+                masked_key = api_key[:6] + "********" if len(api_key) > 6 else "********"
+            return {
+                "model": model,
+                "api_key": masked_key
+            }
+
+        @self._app.post("/settings/validate-and-save")
+        async def save_settings(settings: SettingsSchema):
+            # 1. Resolve Masked API Key
+            api_key = settings.api_key
+            if "********" in api_key:
+                api_key = os.environ.get("OPENROUTER_API_KEY", "")
+
+            # 2. Validate Connection
+            from src.agent.llm_client import LLMClient
+            
+            try:
+                # Temporary client for validation
+                test_client = LLMClient(api_key=api_key, model=settings.model)
+                # Simple test call
+                test_client.chat(
+                    system="You are a validator.",
+                    messages=[{"role": "user", "content": "hi"}]
+                )
+            except Exception as e:
+                err_msg = str(e).lower()
+                print(f"Validation failed: {e}")
+                if "api_key" in err_msg or "401" in err_msg or "unauthorized" in err_msg:
+                    raise HTTPException(status_code=400, detail="❌ API Key tidak valid. Pastikan key dari OpenRouter sudah benar.")
+                elif "model" in err_msg or "404" in err_msg:
+                    raise HTTPException(status_code=400, detail="❌ Model tidak ditemukan. Cek ejaan nama model di openrouter.ai/models")
+                elif "connection" in err_msg or "network" in err_msg or "timeout" in err_msg:
+                    raise HTTPException(status_code=400, detail="❌ Tidak dapat terhubung ke server. Periksa koneksi internet.")
+                else:
+                    raise HTTPException(status_code=400, detail=f"❌ Terjadi kesalahan: {str(e)}")
+
+            # 3. Save to settings.json
+            settings_path = Path("workspace/settings.json")
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "AGENT_MODEL": settings.model,
+                    "OPENROUTER_API_KEY": api_key
+                }, f, indent=4)
+
+            # 4. Update os.environ
+            os.environ["AGENT_MODEL"] = settings.model
+            os.environ["OPENROUTER_API_KEY"] = api_key
+
+            # 5. Reset Agents (force creation with new config)
+            self._agents.clear()
+
+            return {"status": "ok", "message": "✅ Koneksi berhasil! Setting disimpan."}
 
         @self._app.get("/")
         async def index():
@@ -158,10 +227,28 @@ class GatewayServer:
 
 def main():
     from pathlib import Path
+    
+    # Ensure project root is in sys.path for direct execution
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+
+    # 1. Load from settings.json (Highest priority)
+    settings_path = Path("workspace/settings.json")
+    if settings_path.exists():
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+                for key, value in settings.items():
+                    os.environ[key] = value
+            print(f"Loaded config from {settings_path}")
+        except Exception as e:
+            print(f"Error loading settings.json: {e}")
+
+    # 2. Load from .env (Fallback)
     env_path = Path(".env")
     if env_path.exists():
         for line in env_path.read_text(encoding="utf-8").splitlines():
-            if "=" in line:
+            line = line.strip()
+            if "=" in line and not line.startswith("#"):
                 key, _, value = line.partition("=")
                 os.environ.setdefault(key.strip(), value.strip())
 
