@@ -7,7 +7,6 @@ from src.agent.skill_loader import SkillLoader
 from src.agent.prompt_builder import PromptBuilder
 from src.agent.llm_client import LLMClient
 from src.memory.session_store import SessionStore
-from src.memory.glossary_store import GlossaryStore
 from src.tools.registry import ToolRegistry
 
 
@@ -51,7 +50,6 @@ class AgentLoop:
         self._prompt_builder = PromptBuilder()
         self._llm_client = LLMClient()
         self._session_store = SessionStore()
-        self._glossary_store = GlossaryStore()
         self._tool_registry = ToolRegistry()
 
         self._session_store.create_session(self._session_id)
@@ -86,8 +84,6 @@ class AgentLoop:
         assistant_content = response.get("content", "")
 
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
-
-        self._auto_extract_glossary(assistant_content, style)
 
         tool_results = self._execute_tool_calls(assistant_content)
 
@@ -128,8 +124,6 @@ class AgentLoop:
         assistant_content = "".join(full_response)
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
 
-        self._auto_extract_glossary(assistant_content, style)
-
         tool_results = self._execute_tool_calls(assistant_content)
 
         log("agent", f"Response complete — {len(assistant_content.split())} words")
@@ -155,36 +149,6 @@ class AgentLoop:
                 log("agent", f"Reference loaded: {ref}.md")
         return references
 
-    def _auto_extract_glossary(self, text: str, style: str = "auto-extracted") -> None:
-        paired_patterns = [
-            re.compile(r'([\u0600-\u06FF]{3,})\s*=\s*([^\n\r]+?)(?=\n|$)'),
-            re.compile(r'([\u0600-\u06FF]{3,})\s*→\s*([^\n\r]+?)(?=\n|$)'),
-            re.compile(r'([\u0600-\u06FF]{3,})\s*\|\s*([^\n\r|]+?)(?=\n|$)'),
-        ]
-
-        seen = set()
-        extracted_count = 0
-
-        for pattern in paired_patterns:
-            for match in pattern.finditer(text):
-                arabic = match.group(1).strip()
-                indonesian = match.group(2).strip()
-                key = f"{arabic}|{indonesian}"
-                if key in seen or len(arabic) < 2 or len(indonesian) < 2:
-                    continue
-                seen.add(key)
-                existing = self._glossary_store.lookup(arabic)
-                if not existing:
-                    self._glossary_store.add_term(arabic, indonesian, style)
-                    extracted_count += 1
-
-        if extracted_count == 0:
-            arabic_words = re.findall(r'[\u0600-\u06FF]{3,}', text)
-            for arabic in arabic_words[:10]:
-                existing = self._glossary_store.lookup(arabic)
-                if not existing:
-                    self._glossary_store.add_term(arabic, "[terjemahan]", style)
-
     def _execute_tool_calls(self, text: str) -> list[dict[str, Any]]:
         tool_calls = parse_tool_calls(text)
         results = []
@@ -201,10 +165,6 @@ class AgentLoop:
 
     def execute_tool(self, tool_name: str, **kwargs) -> dict[str, Any]:
         return self._tool_registry.execute(tool_name, **kwargs)
-
-    def save_term(self, arabic: str, indonesian: str, context: str = "") -> bool:
-        self._glossary_store.add_term(arabic, indonesian, context)
-        return True
 
     def save_translation(self, filename: str, content: str) -> str:
         result = self._tool_registry.execute(

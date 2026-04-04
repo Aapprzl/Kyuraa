@@ -200,12 +200,6 @@ class GatewayServer:
             self._cleanup_session(session_id)
             return {"deleted": result, "session_id": session_id}
 
-        @self._app.get("/glossary")
-        async def get_glossary():
-            from src.memory.glossary_store import GlossaryStore
-            store = GlossaryStore()
-            return store.get_all()
-
         @self._app.get("/files")
         async def list_files():
             output_dir = Path("workspace/output")

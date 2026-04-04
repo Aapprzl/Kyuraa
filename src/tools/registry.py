@@ -2,14 +2,11 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-from src.memory.glossary_store import GlossaryStore
-
 
 # Path yang diizinkan untuk akses file (relatif terhadap working directory)
 _BASE = Path.cwd()
 ALLOWED_PATHS = [
     str(_BASE / "workspace" / "output"),
-    str(_BASE / "workspace" / "glossary"),
     str(_BASE / "workspace" / "memory"),
 ]
 
@@ -21,7 +18,6 @@ class ToolRegistry:
         self._tools: dict[str, Callable] = {}
         self._output_dir = Path("workspace/output")
         self._reference_dir = Path("src/skills/references")
-        self._glossary = GlossaryStore()
         self._register_tools()
 
     def _register_tools(self) -> None:
@@ -32,7 +28,6 @@ class ToolRegistry:
             "save_translation": self._save_translation,
             "list_output_files": self._list_output_files,
             "load_reference": self._load_reference,
-            "save_glossary_term": self._save_glossary_term,
             "open_output_folder": self._open_output_folder,
         }
 
@@ -108,10 +103,6 @@ class ToolRegistry:
         if ref_path.exists():
             return ref_path.read_text(encoding="utf-8")
         return None
-
-    def _save_glossary_term(self, arab: str, indo: str, konteks: str = "") -> bool:
-        self._glossary.add_term(arab, indo, konteks)
-        return True
 
     def _open_output_folder(self) -> bool:
         try:
