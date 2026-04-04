@@ -328,6 +328,23 @@ class GatewayServer:
         uvicorn.run(self._app, host=self._host, port=self._port, log_level="warning")
 
 
+def print_banner(skill_count: int = 0):
+    banner = """
+\033[96m██╗  ██╗██╗   ██╗██╗   ██╗██████╗  █████╗  █████╗
+██║ ██╔╝╚██╗ ██╔╝██║   ██║██╔══██╗██╔══██╗██╔══██╗
+█████╔╝  ╚████╔╝ ██║   ██║██████╔╝███████║███████║
+██╔═██╗   ╚██╔╝  ██║   ██║██╔══██╗██╔══██║██╔══██║
+██║  ██╗   ██║   ╚██████╔╝██║  ██║██║  ██║██║  ██║
+╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
+\033[0m
+\033[96mv1.0.0 — Personal AI Agent\033[0m
+\033[90mSkill aktif:\033[0m \033[92m{skill_count} skill terdeteksi\033[0m
+\033[90mGateway:\033[0m \033[96mhttp://127.0.0.1:8766\033[0m
+\033[90m─────────────────────────────────────────────────────\033[0m
+""".format(skill_count=skill_count)
+    print(banner)
+
+
 def main():
     from pathlib import Path
     
@@ -359,6 +376,11 @@ def main():
     host = os.environ.get("GATEWAY_HOST", "localhost")
 
     server = GatewayServer(host=host, port=port)
+
+    from src.agent.agent_loop import AgentLoop
+    temp_agent = AgentLoop(session_id="__system__")
+    skill_count = len(temp_agent._skill_manager.available_skills)
+    print_banner(skill_count)
 
     def signal_handler(sig, frame):
         log("gateway", "Shutting down...")
