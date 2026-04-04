@@ -1,8 +1,8 @@
 @echo off
 echo ===================================
-echo  AI Agent Penerjemah Arab-Indonesia
+echo Kyuraa - AI Agent Terjemahan Arab-Indonesia
 echo ===================================
-cd /d D:\PROJECT_APP\agent-arab
+cd /d D:\PROJECT_APP\Kyuraa
 if exist venv\Scripts\activate.bat (
     call venv\Scripts\activate.bat
 ) else (

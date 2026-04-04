@@ -1,19 +1,40 @@
 ---
 name: penerjemah-arab-indo
+version: 2.0.0
 description: >
-  Terjemah dua arah Indonesia↔Arab untuk karya ilmiah akademik (skripsi, tesis,
-  jurnal, makalah, abstrak) — deteksi arah otomatis, analisis nahwu/sharaf/balaghah,
-  output linguistic/default/translation-only. Aktif saat pengguna menyebut:
-  "terjemah ke Arab", "terjemah ke Indonesia", "Arab yang benar", "nahwu sharaf",
-  "karya ilmiah Arab", "skripsi Arab", "abstrak Arab", "apa artinya",
-  atau mengirim teks Arab untuk diartikan.
-version: 1.0.0
-metadata:
-  openclaw:
-    emoji: "🕌"
-    os: ["win32", "linux", "darwin"]
-    always: false
-user-invocable: true
+  Terjemah dua arah Indonesia-Arab untuk karya ilmiah
+  akademik (skripsi, tesis, jurnal, makalah, abstrak).
+  Aktifkan skill ini saat user ingin menerjemahkan teks
+  Arab atau Indonesia, meminta analisis nahwu/sharaf/
+  balaghah, atau membutuhkan bantuan karya ilmiah Arab.
+trigger_keywords:
+  - terjemahkan
+  - terjemah
+  - apa artinya
+  - arab-kan
+  - indonesia-kan
+  - nahwu
+  - sharaf
+  - balaghah
+  - karya ilmiah arab
+  - skripsi arab
+  - tesis arab
+  - abstrak arab
+  - penerjemah arab
+  - skill penerjemah
+references:
+  always_load:
+    - 05-akademik.md
+    - 06-kolokasi.md
+  on_demand:
+    - 01-nahwu.md
+    - 02-sharaf.md
+    - 03-balaghah.md
+    - 04-special-cases.md
+    - 00-bahasa-indonesia.md
+    - examples.md
+    - quick-ref.md
+author: Muh Aprizal
 ---
 
 ## Mode Interaksi

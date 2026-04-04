@@ -4,32 +4,36 @@ from typing import Any
 class PromptBuilder:
     def __init__(self):
         self._reference_keywords = {
-            "01-nahwu": ["nahwu", "i'rab", "gramatikal", "sintaksis", "irab", "kalimat", "fi'il", "isim", "harakat", "nawasikh", "idhafah"],
-            "02-sharaf": ["sharaf", "wazan", "morfologi", "imbuhan", "fi'il madhi", "fi'il mudhari", "mashdar", "isim fa'il", "isim maf'ul"],
-            "03-balaghah": ["balaghah", "retorika", "qur'ani", "sastra arab", "uslub", "majaz", "kinayah"],
-            "04-special-cases": ["bilangan", "angka", "idiom", "kasus khusus"],
-            "05-akademik": ["akademik", "skripsi", "tesis", "jurnal", "abstrak"],
-            "06-kolokasi": ["kolokasi", "verba", "kata kerja"],
+            "01-nahwu.md": ["nahwu", "i'rab", "gramatikal", "sintaksis", "irab", "kalimat", "fi'il", "isim", "harakat", "nawasikh", "idhafah"],
+            "02-sharaf.md": ["sharaf", "wazan", "morfologi", "imbuhan", "fi'il madhi", "fi'il mudhari", "mashdar", "isim fa'il", "isim maf'ul"],
+            "03-balaghah.md": ["balaghah", "retorika", "qur'ani", "sastra arab", "uslub", "majaz", "kinayah"],
+            "04-special-cases.md": ["bilangan", "angka", "idiom", "kasus khusus"],
         }
 
-    def build_system_prompt(self, skill_loader) -> str:
-        if skill_loader is None:
-            return ""
+    def build_system_prompt(self, skill_manager) -> str:
+        BASE_PROMPT = """Kamu adalah asisten AI pribadi yang
+cerdas dan bisa diajak ngobrol. Kamu memiliki beberapa
+skill khusus yang bisa diaktifkan sesuai kebutuhan.
 
-        prompt = skill_loader.get_system_prompt()
-        if not prompt:
-            return ""
+ATURAN DASAR:
+- Jika user menyapa atau mengobrol biasa -> jawab natural
+- Jika user menyebut nama skill atau minta aktifkan skill
+  -> konfirmasi skill akan diaktifkan
+- Jika ada skill aktif -> ikuti instruksi skill tersebut
+- Jika tidak ada skill aktif -> jadilah asisten biasa
 
-        parts = [prompt]
+"""
 
-        name = skill_loader.get_name()
-        if name:
-            parts.insert(0, f"# Skill: {name}\n")
+        skill_prompt = skill_manager.get_system_prompt()
+        skills_list = skill_manager.get_skills_summary()
 
-        return "\n\n".join(parts)
+        if skill_manager.is_active():
+            return BASE_PROMPT + skill_prompt
+        else:
+            return BASE_PROMPT + skills_list
 
-    def build_system_with_references(self, skill_loader, references: dict[str, str]) -> str:
-        system = self.build_system_prompt(skill_loader)
+    def build_system_with_references(self, skill_manager, references: dict[str, str]) -> str:
+        system = self.build_system_prompt(skill_manager)
         if not references:
             return system
 
@@ -64,15 +68,25 @@ class PromptBuilder:
         ref_section = f"\n\n## Reference: {ref_name}\n\n{ref_content}\n"
         return prompt + ref_section
 
-    def detect_needed_references(self, user_input: str) -> list[str]:
-        user_lower = user_input.lower()
-        needed = ["05-akademik", "06-kolokasi"]
+    def detect_needed_references(self, user_input: str, skill_manager) -> list[str]:
+        if not skill_manager.is_active():
+            return []
 
+        skill_info = skill_manager.available_skills.get(skill_manager.active_skill)
+        if not skill_info:
+            return []
+
+        refs = skill_info.get("references", {})
+        always_load = refs.get("always_load", [])
+        on_demand = refs.get("on_demand", [])
+
+        needed = list(always_load)
+
+        user_lower = user_input.lower()
         for ref_name, keywords in self._reference_keywords.items():
-            if ref_name in needed:
-                continue
             if any(kw in user_lower for kw in keywords):
-                needed.append(ref_name)
+                if ref_name not in needed and ref_name in on_demand:
+                    needed.append(ref_name)
 
         return needed
 

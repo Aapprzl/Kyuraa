@@ -26,6 +26,10 @@ class SettingsSchema(BaseModel):
     api_key: str
 
 
+class SkillActivateSchema(BaseModel):
+    skill_name: str
+
+
 class GatewayServer:
     def __init__(self, host: str = "localhost", port: int = 8765):
         self._host = host
@@ -217,6 +221,46 @@ class GatewayServer:
             output_dir.mkdir(parents=True, exist_ok=True)
             files = [f.name for f in output_dir.iterdir() if f.is_file()]
             return {"files": files}
+
+        @self._app.get("/skills")
+        async def list_skills():
+            agent = self._create_agent("__system__")
+            skills_data = []
+            for name, info in agent._skill_manager.available_skills.items():
+                desc = info.get("description", "")
+                if isinstance(desc, list):
+                    desc = " ".join(desc)
+                skills_data.append({
+                    "name": name,
+                    "description": desc,
+                    "is_active": agent._skill_manager.active_skill == name,
+                })
+            return {
+                "skills": skills_data,
+                "active_skill": agent._skill_manager.active_skill,
+            }
+
+        @self._app.post("/skills/activate")
+        async def activate_skill(payload: SkillActivateSchema):
+            agent = self._create_agent("__system__")
+            skill_name = payload.skill_name.strip()
+            try:
+                agent._skill_manager.activate(skill_name)
+                log("gateway", f"Skill activated via API: {skill_name}")
+                return {
+                    "success": True,
+                    "message": f"✅ Skill **{skill_name}** berhasil diaktifkan!",
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=404, detail=str(e))
+
+        @self._app.post("/skills/deactivate")
+        async def deactivate_skill():
+            agent = self._create_agent("__system__")
+            current = agent._skill_manager.active_skill
+            agent._skill_manager.deactivate()
+            log("gateway", f"Skill deactivated: {current}")
+            return {"success": True}
 
     def _create_agent(self, session_id: str) -> Any:
         if session_id not in self._agents:

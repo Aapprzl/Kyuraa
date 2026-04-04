@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agent Arab - Premium Translation Console</title>
+    <title>Kyuraa - Premium Translation Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -139,7 +139,7 @@
     <header class="h-14 border-b border-white/5 bg-brand-base flex items-center px-6 justify-between shrink-0 z-30">
         <div class="flex items-center gap-3">
             <h1 class="text-sm font-bold tracking-tight text-white/90">
-                Agent Arab <span class="text-xs font-normal text-cyan-400 ml-1.5 opacity-80">v1.0</span>
+                Kyuraa <span class="text-xs font-normal text-cyan-400 ml-1.5 opacity-80">v1.0</span>
             </h1>
         </div>
 
@@ -147,6 +147,11 @@
             <div id="model-badge" class="hidden md:flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1 text-[10px] font-medium text-slate-400 hover:border-cyan-500/30 transition-colors">
                 <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
                 <span id="model-name">Loading model...</span>
+            </div>
+            <div id="skill-badge" class="hidden items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-3 py-1 text-[10px] font-bold text-amber-400 hover:bg-amber-500/20 transition-colors">
+                <span>🎯</span>
+                <span id="skill-name">skill</span>
+                <button onclick="deactivateSkill()" class="ml-1 w-4 h-4 rounded-full hover:bg-amber-500/30 flex items-center justify-center text-[8px] transition-colors" title="Nonaktifkan skill">✕</button>
             </div>
             <div class="bg-slate-900 border border-white/5 rounded-full px-3 py-1 flex items-center gap-2 text-[10px] font-mono text-slate-500">
                 <span id="session-display">Session ID: ...</span>
@@ -183,9 +188,9 @@
             <div id="chat-container" class="flex-1 overflow-y-auto px-6 py-8 flex flex-col">
                 <!-- Welcome State -->
                 <div id="welcome-state" class="flex-1 flex flex-col items-center justify-center text-center animate-fade">
-                    <h2 class="text-4xl font-extrabold text-white mb-4 tracking-tight">Agent Arab</h2>
+                    <h2 class="text-4xl font-extrabold text-white mb-4 tracking-tight">Kyuraa</h2>
                     <p class="text-slate-400 text-sm md:text-base max-w-sm mx-auto leading-relaxed opacity-80">
-                        Console AI khusus terjemahan Arab-Indonesia berkualitas akademik. Masukkan teks dan biarkan Agent bekerja.
+Asisten terjemahan Arab-Indonesia berkualitas akademik. Masukkan teks dan biarkan Kyuraa bekerja.
                     </p>
                 </div>
             </div>
@@ -521,6 +526,61 @@
             }
         }
 
+        async function fetchSkillStatus() {
+            try {
+                const r = await fetch('/skills');
+                const data = await r.json();
+                if (data.active_skill) {
+                    showSkillBadge(data.active_skill);
+                } else {
+                    hideSkillBadge();
+                }
+            } catch (e) {
+                console.error('Failed to fetch skill status');
+            }
+        }
+
+        function showSkillBadge(skillName) {
+            const badge = document.getElementById('skill-badge');
+            const nameEl = document.getElementById('skill-name');
+            if (badge && nameEl) {
+                nameEl.textContent = skillName;
+                badge.classList.remove('hidden');
+                badge.classList.add('flex');
+            }
+        }
+
+        function hideSkillBadge() {
+            const badge = document.getElementById('skill-badge');
+            if (badge) {
+                badge.classList.add('hidden');
+                badge.classList.remove('flex');
+            }
+        }
+
+        async function deactivateSkill() {
+            try {
+                const r = await fetch('/skills/deactivate', { method: 'POST' });
+                if (r.ok) {
+                    hideSkillBadge();
+                    showToast('Skill dinonaktifkan', 'info');
+                }
+            } catch (e) {
+                console.error('Failed to deactivate skill');
+            }
+        }
+
+        function updateSkillBadgeFromResponse(content) {
+            const activatedMatch = content.match(/✅\s*Skill\s*\*?\*?([^\s*]+)\*?\*?\s*aktif/);
+            if (activatedMatch) {
+                showSkillBadge(activatedMatch[1]);
+                return;
+            }
+            if (content.includes('✅ Skill dinonaktifkan') || content.includes('Skill dinonaktifkan')) {
+                hideSkillBadge();
+            }
+        }
+
         // --- WebSocket ---
         function connect() {
             sessionId = 's-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
@@ -538,6 +598,7 @@
                 hideDisconnectedOverlay();
                 if (!isReconnecting) showToast('Agent connected to terminal', 'success');
                 fetchModelInfo();
+                fetchSkillStatus();
                 renderHistory();
             };
 
@@ -736,6 +797,9 @@
                 // Save to persistent usage stats
                 const timeMs = startTime ? (Date.now() - startTime) : 0;
                 addUsageStats(inputTokens, outputTokens, timeMs);
+                
+                // Update skill badge based on response content
+                updateSkillBadgeFromResponse(currentContent);
                 
                 currentResponseDiv = null;
             }
@@ -1111,7 +1175,7 @@
             welcome.id = 'welcome-state'; 
             welcome.className = 'flex-1 flex flex-col items-center justify-center text-center animate-fade'; 
             welcome.innerHTML = `
-                <h2 class="text-4xl font-extrabold text-white mb-4 tracking-tight">Agent Arab</h2>
+                <h2 class="text-4xl font-extrabold text-white mb-4 tracking-tight">Kyuraa</h2>
                 <p class="text-slate-400 text-sm md:text-base max-w-sm mx-auto leading-relaxed opacity-80">
                     Console AI khusus terjemahan Arab-Indonesia berkualitas akademik. Masukkan teks dan biarkan Agent bekerja.
                 </p>
