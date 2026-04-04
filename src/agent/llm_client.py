@@ -19,6 +19,8 @@ def _load_env():
 _load_env()
 
 
+from src.utils.logger import log
+
 class LLMClient:
     def __init__(
         self,
@@ -51,37 +53,46 @@ class LLMClient:
         tokens = self.count_tokens(messages)
         if tokens > self._max_tokens * 3:
             if truncate_history:
-                print(f"[WARN] Context too long ({tokens} tokens), truncating history...")
+                log("warn", f"Context too long ({tokens} tokens), truncating history...")
                 messages = self._truncate_history(list(messages))
             else:
-                print(f"[WARN] Context length ({tokens} tokens) exceeds recommended limit")
+                log("warn", f"Context length ({tokens} tokens) exceeds recommended limit")
 
         openai_messages = self._build_openai_messages(system, list(messages))
 
         for attempt in range(3):
             try:
+                log("llm", f"Request sent → {self._model_name}")
+                start_time = time.time()
                 response = self._client.chat.completions.create(
                     model=self._model_name,
                     messages=openai_messages,
                     max_tokens=self._max_tokens,
                     temperature=0.7,
                 )
+                duration = round(time.time() - start_time, 2)
                 content = response.choices[0].message.content or ""
                 usage = response.usage
+                
+                input_tokens = usage.prompt_tokens if usage else tokens
+                output_tokens = usage.completion_tokens if usage else self.count_tokens([{"content": content}])
+                log("llm", f"Response received — {input_tokens + output_tokens} tokens — {duration}s")
+                
                 return {
                     "content": content,
                     "model": self._model_name,
                     "usage": {
-                        "input_tokens": usage.prompt_tokens if usage else tokens,
-                        "output_tokens": usage.completion_tokens if usage else self.count_tokens([{"content": content}]),
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
                     },
                     "stop_reason": response.choices[0].finish_reason or "stop",
                 }
             except Exception as e:
                 error_str = str(e)
+                log("error", f"LLM error: {error_str}")
                 if "429" in error_str or "rate" in error_str.lower() or "quota" in error_str.lower():
                     if attempt < 2:
-                        print(f"[WARN] Rate limit hit, retrying in 5 seconds... (attempt {attempt + 1}/3)")
+                        log("warn", f"Rate limit hit, retrying in 5 seconds... (attempt {attempt + 1}/3)")
                         time.sleep(5)
                     else:
                         raise
@@ -89,7 +100,7 @@ class LLMClient:
                     raise TimeoutError(f"Request timed out after {self._timeout}s")
                 elif "connection" in error_str.lower() or "network" in error_str.lower():
                     if attempt < 1:
-                        print(f"[WARN] Network error, retrying... (attempt {attempt + 1}/2)")
+                        log("warn", f"Network error, retrying... (attempt {attempt + 1}/2)")
                         time.sleep(2)
                     else:
                         raise ConnectionError(f"Network error after 2 retries: {e}")
@@ -119,12 +130,14 @@ class LLMClient:
     ) -> Generator[str, None, None]:
         tokens = self.count_tokens(messages)
         if tokens > self._max_tokens * 3:
-            print(f"[WARN] Context too long ({tokens} tokens), truncating history for stream...")
+            log("warn", f"Context too long ({tokens} tokens), truncating history for stream...")
             messages = self._truncate_history(list(messages))
 
         openai_messages = self._build_openai_messages(system, list(messages))
 
         try:
+            log("llm", f"Request sent (stream) → {self._model_name}")
+            start_time = time.time()
             response = self._client.chat.completions.create(
                 model=self._model_name,
                 messages=openai_messages,
@@ -132,11 +145,18 @@ class LLMClient:
                 temperature=0.7,
                 stream=True,
             )
+            # Timing for stream is tricky, we log when we start receiving
+            first_token = True
             for chunk in response:
+                if first_token:
+                    duration = round(time.time() - start_time, 2)
+                    log("llm", f"First token received — {duration}s")
+                    first_token = False
                 delta = chunk.choices[0].delta
                 if hasattr(delta, "content") and delta.content:
                     yield delta.content
         except Exception as e:
+            log("error", f"LLM Stream error: {e}")
             if "timeout" in str(e).lower() or "deadline" in str(e).lower():
                 raise TimeoutError(f"Stream request timed out after {self._timeout}s")
             raise

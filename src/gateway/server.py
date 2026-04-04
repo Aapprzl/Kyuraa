@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import signal
 import sys
@@ -8,10 +9,16 @@ from typing import Any, Optional
 # Ensure project root is in sys.path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from src.utils.logger import log
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
+
+# Suppress uvicorn access logs
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 
 
 class SettingsSchema(BaseModel):
@@ -71,7 +78,7 @@ class GatewayServer:
                 )
             except Exception as e:
                 err_msg = str(e).lower()
-                print(f"Validation failed: {e}")
+                log("error", f"Validation failed: {e}")
                 if "api_key" in err_msg or "401" in err_msg or "unauthorized" in err_msg:
                     raise HTTPException(status_code=400, detail="❌ API Key tidak valid. Pastikan key dari OpenRouter sudah benar.")
                 elif "model" in err_msg or "404" in err_msg:
@@ -97,7 +104,8 @@ class GatewayServer:
 
             # 5. Reset Agents (force creation with new config)
             self._agents.clear()
-
+            
+            log("gateway", f"Settings updated — model: {settings.model}")
             return {"status": "ok", "message": "✅ Koneksi berhasil! Setting disimpan."}
 
         @self._app.get("/")
@@ -108,6 +116,7 @@ class GatewayServer:
         async def websocket_endpoint(websocket: WebSocket, session_id: str):
             await websocket.accept()
             self._session_buffers[session_id] = []
+            log("ws", f"Client connected — session: {session_id}")
 
             try:
                 agent = self._create_agent(session_id)
@@ -158,8 +167,10 @@ class GatewayServer:
                         await websocket.send_json({"type": "done", "session_id": session_id})
 
             except WebSocketDisconnect:
+                log("ws", f"Client disconnected — session: {session_id}")
                 self._cleanup_session(session_id)
             except Exception as e:
+                log("error", f"WebSocket error: {e}")
                 await websocket.send_json({
                     "type": "error",
                     "message": str(e),
@@ -218,11 +229,8 @@ class GatewayServer:
 
     def run(self):
         self._running = True
-        print(f"Gateway starting on http://{self._host}:{self._port}")
-        print(f"WebSocket endpoint: ws://{self._host}:{self._port}/ws/{{session_id}}")
-        print(f"Health check: http://{self._host}:{self._port}/health")
-
-        uvicorn.run(self._app, host=self._host, port=self._port, log_level="info")
+        log("gateway", f"Server running on http://{self._host}:{self._port}")
+        uvicorn.run(self._app, host=self._host, port=self._port, log_level="warning")
 
 
 def main():
@@ -239,9 +247,9 @@ def main():
                 settings = json.load(f)
                 for key, value in settings.items():
                     os.environ[key] = value
-            print(f"Loaded config from {settings_path}")
+            log("gateway", f"Loaded config from {settings_path}")
         except Exception as e:
-            print(f"Error loading settings.json: {e}")
+            log("error", f"Error loading settings.json: {e}")
 
     # 2. Load from .env (Fallback)
     env_path = Path(".env")
@@ -258,7 +266,7 @@ def main():
     server = GatewayServer(host=host, port=port)
 
     def signal_handler(sig, frame):
-        print("\nShutting down...")
+        log("gateway", "Shutting down...")
         server._running = False
         sys.exit(0)
 

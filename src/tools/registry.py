@@ -14,6 +14,8 @@ ALLOWED_PATHS = [
 ]
 
 
+from src.utils.logger import log
+
 class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, Callable] = {}
@@ -64,21 +66,25 @@ class ToolRegistry:
     def _detect_language(self, teks: str) -> str:
         arabic_chars = sum(1 for c in teks if "\u0600" <= c <= "\u06FF")
         ratio = arabic_chars / max(len(teks.strip()), 1)
+        res = "indonesian"
         if ratio > 0.3:
-            return "arabic"
+            res = "arabic"
         elif ratio > 0.05:
-            return "mixed"
-        else:
-            return "indonesian"
+            res = "mixed"
+        
+        log("tools", f"Language detected: {res}")
+        return res
 
     def _read_file(self, path: str) -> str:
         if not self._is_safe_path(path):
             raise PermissionError(f"Path not allowed: {path}")
+        log("tools", f"File read: {path}")
         return Path(path).read_text(encoding="utf-8")
 
     def _write_file(self, path: str, content: str) -> bool:
         if not self._is_safe_path(path):
             raise PermissionError(f"Path not allowed: {path}")
+        log("tools", f"File saved: {path}")
         file_path = Path(path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding="utf-8")
@@ -90,6 +96,7 @@ class ToolRegistry:
             raise PermissionError(f"Path not allowed: {output_path}")
         self._output_dir.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content, encoding="utf-8")
+        log("tools", f"File saved: {output_path}")
         return str(output_path)
 
     def _list_output_files(self) -> list[str]:

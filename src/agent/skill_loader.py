@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Any
 
 
+from src.utils.logger import log
+
 class SkillLoader:
     def __init__(self):
         self._metadata: dict[str, Any] = {}
@@ -25,6 +27,7 @@ class SkillLoader:
         ref_dir = path.parent / "references"
         self._references_dir = ref_dir if ref_dir.exists() else None
 
+        log("agent", f"Skill loaded: {path.name}")
         return self
 
     def get_name(self) -> str | None:

@@ -35,6 +35,8 @@ def parse_tool_calls(response_text: str) -> list[dict[str, Any]]:
     return tool_calls
 
 
+from src.utils.logger import log
+
 class AgentLoop:
     def __init__(
         self,
@@ -63,6 +65,7 @@ class AgentLoop:
         return "non-formal"
 
     def run(self, user_input: str) -> dict[str, Any]:
+        log("agent", f"Processing request — session: {self._session_id}")
         lang = self._detect_language(user_input)
         style = self._detect_style(user_input)
 
@@ -88,6 +91,7 @@ class AgentLoop:
 
         tool_results = self._execute_tool_calls(assistant_content)
 
+        log("agent", f"Response complete — {len(assistant_content.split())} words")
         return {
             "session_id": self._session_id,
             "language": lang,
@@ -99,6 +103,7 @@ class AgentLoop:
         }
 
     def run_stream(self, user_input: str) -> Generator[str, None, dict[str, Any]]:
+        log("agent", f"Processing request — session: {self._session_id}")
         lang = self._detect_language(user_input)
         style = self._detect_style(user_input)
 
@@ -127,6 +132,7 @@ class AgentLoop:
 
         tool_results = self._execute_tool_calls(assistant_content)
 
+        log("agent", f"Response complete — {len(assistant_content.split())} words")
         return {
             "session_id": self._session_id,
             "language": lang,
@@ -146,6 +152,7 @@ class AgentLoop:
             result = self._tool_registry.execute("load_reference", nama_referensi=ref)
             if result.get("success") and result.get("result"):
                 references[ref] = result["result"]
+                log("agent", f"Reference loaded: {ref}.md")
         return references
 
     def _auto_extract_glossary(self, text: str, style: str = "auto-extracted") -> None:

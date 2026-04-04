@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 
 
+from src.utils.logger import log
+
 class SessionStore:
     def __init__(self, db_path: str | Path = "workspace/memory/sessions.db"):
         self._db_path = Path(db_path)
@@ -49,6 +51,7 @@ class SessionStore:
                 (session_id, now, now)
             )
             conn.commit()
+        log("memory", f"New session created: {session_id}")
         return {"session_id": session_id, "created_at": now, "updated_at": now}
 
     def add_message(self, session_id: str, role: str, content: str, token_count: int | None = None) -> bool:
@@ -66,6 +69,7 @@ class SessionStore:
                 (now, session_id)
             )
             conn.commit()
+        log("memory", f"Message saved — session: {session_id}")
         return True
 
     def get_history(self, session_id: str, limit: int = 20) -> list[dict]:

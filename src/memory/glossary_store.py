@@ -3,6 +3,8 @@ from datetime import datetime
 from pathlib import Path
 
 
+from src.utils.logger import log
+
 class GlossaryStore:
     def __init__(self, storage_path: str | Path = "workspace/glossary/glossary.json"):
         self._storage_path = Path(storage_path)
@@ -46,6 +48,7 @@ class GlossaryStore:
         self._data["terms"].append(entry)
         self._build_indexes()
         self._save()
+        log("memory", "Glossary updated — 1 new term")
 
     def lookup(self, arabic: str) -> list[dict] | None:
         indices = self._index_arabic.get(arabic)
