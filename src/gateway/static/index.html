@@ -236,7 +236,7 @@ Asisten terjemahan Arab-Indonesia berkualitas akademik. Masukkan teks dan biarka
 
         <!-- Settings View -->
         <div id="settings-view" class="hidden flex-1 overflow-y-auto bg-brand-base p-8 animate-fade">
-            <div class="max-w-xl mx-auto">
+            <div class="max-w-3xl mx-auto">
                 <button onclick="toggleSettings(false)" class="mb-8 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
                     <span class="text-lg group-hover:-translate-x-1 transition-transform">←</span>
                     <span class="text-xs font-bold uppercase tracking-widest">Kembali ke Chat</span>
@@ -309,6 +309,72 @@ Asisten terjemahan Arab-Indonesia berkualitas akademik. Masukkan teks dan biarka
                                 <span id="usage-total" class="text-cyan-300 font-mono">0</span>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Skill Management Section -->
+                    <div class="mt-6 p-5 rounded-2xl bg-white/5 border border-white/5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                                <span>🎯</span> Manajemen Skill
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <span id="skill-count" class="text-[9px] font-mono text-slate-500">0 skill</span>
+                                <button onclick="fetchSkillsList()" class="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors" title="Refresh daftar skill">
+                                    <span class="text-xs">🔄</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Skills Table -->
+                        <div id="skills-table-container" class="hidden">
+                            <div class="overflow-hidden rounded-xl border border-white/5">
+                                <table class="w-full text-[10px]">
+                                    <thead class="bg-white/5">
+                                        <tr class="text-slate-500 uppercase tracking-wider">
+                                            <th class="px-3 py-2 text-left font-bold">Nama</th>
+                                            <th class="px-3 py-2 text-left font-bold hidden md:table-cell">Deskripsi</th>
+                                            <th class="px-3 py-2 text-center font-bold">Ver</th>
+                                            <th class="px-3 py-2 text-center font-bold">Ref</th>
+                                            <th class="px-3 py-2 text-center font-bold">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="skills-table-body" class="divide-y divide-white/5">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div id="skills-empty" class="py-6 text-center">
+                            <p class="text-[10px] text-slate-500">Belum ada skill terpasang</p>
+                        </div>
+
+                        <!-- How to Add New Skill -->
+                        <div class="mt-4 p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-2">
+                            <h4 class="text-[10px] font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <span>📦</span> Cara Menambah Skill Baru
+                            </h4>
+                            <div class="space-y-1.5 text-[9px] text-slate-400 pl-5">
+                                <p class="flex items-center gap-2">
+                                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[8px] font-bold shrink-0">1</span>
+                                    Download template skill di bawah ini
+                                </p>
+                                <p class="flex items-center gap-2">
+                                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[8px] font-bold shrink-0">2</span>
+                                    Buat folder baru di <span class="font-mono text-cyan-400/70">workspace/skills/</span>
+                                </p>
+                                <p class="flex items-center gap-2">
+                                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[8px] font-bold shrink-0">3</span>
+                                    Isi <span class="font-mono text-cyan-400/70">SKILL.md</span> dan refresh halaman
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Download Template Button -->
+                        <button onclick="downloadSkillTemplate()" class="w-full py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 font-bold text-xs transition-all flex items-center justify-center gap-2 group">
+                            <span class="group-hover:scale-110 transition-transform">📥</span>
+                            Download Template Skill
+                        </button>
                     </div>
 
                     <div class="pt-4">
@@ -1198,6 +1264,68 @@ Asisten terjemahan Arab-Indonesia berkualitas akademik. Masukkan teks dan biarka
         function getElapsedTime() { if (!startTime) return '0s'; return Math.floor((Date.now() - startTime) / 1000) + 's'; }
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         function scrollToBottom() { chatContainer.scrollTop = chatContainer.scrollHeight; }
+
+        // --- Skill Management Functions ---
+        async function fetchSkillsList() {
+            try {
+                const r = await fetch('/skills/list-detail');
+                const data = await r.json();
+                
+                const countEl = document.getElementById('skill-count');
+                const tableContainer = document.getElementById('skills-table-container');
+                const emptyEl = document.getElementById('skills-empty');
+                const tbody = document.getElementById('skills-table-body');
+                
+                if (data.skills && data.skills.length > 0) {
+                    countEl.textContent = `${data.skills.length} skill`;
+                    tbody.innerHTML = data.skills.map(skill => `
+                        <tr class="hover:bg-white/5 transition-colors">
+                            <td class="px-3 py-2.5">
+                                <span class="font-bold text-slate-200">${escapeHtml(skill.name)}</span>
+                            </td>
+                            <td class="px-3 py-2.5 hidden md:table-cell">
+                                <span class="text-slate-400 line-clamp-1 max-w-[200px] block" title="${escapeHtml(skill.description)}">${escapeHtml(skill.description)}</span>
+                            </td>
+                            <td class="px-3 py-2.5 text-center">
+                                <span class="font-mono text-slate-500">${skill.version}</span>
+                            </td>
+                            <td class="px-3 py-2.5 text-center">
+                                <span class="font-mono text-cyan-400">${skill.references_count}</span>
+                            </td>
+                            <td class="px-3 py-2.5 text-center">
+                                ${skill.is_active 
+                                    ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[8px] font-bold">AKTIF</span>'
+                                    : '<span class="px-2 py-0.5 rounded-full bg-white/5 text-slate-500 text-[8px] font-bold">NONAKTIF</span>'
+                                }
+                            </td>
+                        </tr>
+                    `).join('');
+                    tableContainer.classList.remove('hidden');
+                    emptyEl.classList.add('hidden');
+                } else {
+                    countEl.textContent = '0 skill';
+                    tableContainer.classList.add('hidden');
+                    emptyEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error('Failed to fetch skills list:', e);
+                showToast('Gagal memuat daftar skill', 'error');
+            }
+        }
+
+        function downloadSkillTemplate() {
+            window.location.href = '/skills/template';
+            showToast('Template skill sedang diunduh...', 'success');
+        }
+
+        // Fetch skills when settings page opens
+        const originalToggleSettings = toggleSettings;
+        toggleSettings = function(show = true) {
+            originalToggleSettings(show);
+            if (show) {
+                setTimeout(() => fetchSkillsList(), 100);
+            }
+        };
 
         messageInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
         messageInput.addEventListener('input', () => { messageInput.style.height = 'auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px'; const len = messageInput.value.length; if (len > 0) { charCountEl.textContent = `${len} characters`; charCountEl.classList.remove('hidden'); } else { charCountEl.classList.add('hidden'); } });

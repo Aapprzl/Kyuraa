@@ -262,6 +262,52 @@ class GatewayServer:
             log("gateway", f"Skill deactivated: {current}")
             return {"success": True}
 
+        @self._app.get("/skills/template")
+        async def get_skill_template():
+            template_path = Path("workspace/skills/SKILL_TEMPLATE.md")
+            if not template_path.exists():
+                raise HTTPException(status_code=404, detail="Template file tidak ditemukan")
+            return FileResponse(
+                template_path,
+                media_type="text/markdown",
+                filename="SKILL_TEMPLATE.md",
+                headers={"Content-Disposition": "attachment; filename=SKILL_TEMPLATE.md"}
+            )
+
+        @self._app.get("/skills/list-detail")
+        async def list_skills_detail():
+            agent = self._create_agent("__system__")
+            skills_data = []
+            for name, info in agent._skill_manager.available_skills.items():
+                desc = info.get("description", "")
+                if isinstance(desc, list):
+                    desc = " ".join(desc)
+                
+                folder_path = Path(info.get("folder_path", ""))
+                refs_count = 0
+                refs_list = []
+                references_dir = folder_path / "references"
+                if references_dir.exists() and references_dir.is_dir():
+                    refs_list = [f.name for f in references_dir.iterdir() if f.is_file()]
+                    refs_count = len(refs_list)
+                
+                version = "1.0"
+                version_match = desc.split("version", 1) if desc else []
+                
+                skills_data.append({
+                    "name": name,
+                    "description": desc.replace("\n", " ").strip() if isinstance(desc, str) else str(desc),
+                    "version": version,
+                    "references_count": refs_count,
+                    "references": refs_list,
+                    "is_active": agent._skill_manager.active_skill == name,
+                })
+            return {
+                "skills": skills_data,
+                "active_skill": agent._skill_manager.active_skill,
+                "total": len(skills_data),
+            }
+
     def _create_agent(self, session_id: str) -> Any:
         if session_id not in self._agents:
             from src.agent.agent_loop import AgentLoop
