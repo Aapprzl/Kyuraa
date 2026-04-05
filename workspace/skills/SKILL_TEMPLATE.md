@@ -88,10 +88,17 @@ Contoh:
 
 ## Catatan Penting
 
-<INFORMASI TAMBAHAN ATAU PERINGATAN>
 - Jangan mengubah makna asli teks
 - Konsistensi terminologi sangat penting
-- ...
+
+## Efisiensi & Kontinuitas (Penting untuk Teks Panjang)
+
+> ⚠️ **PRINSIP DASAR:** Fokus pada hasil akhir yang berkualitas. Hindari pengulangan teks input yang terlalu panjang agar tidak menghabiskan kuota karakter (token).
+
+**Aturan Efisiensi:**
+- Jika input pengguna sangat panjang (paragraf penuh), **JANGAN** tulis ulang seluruh teks input di bagian awal jawaban. Cukup kutip ringkasannya saja.
+- Jika output terhenti karena batas panjang teks, tunggu pengguna mengetik **"Lanjut"** untuk meneruskan sisa jawaban.
+- Prioritaskan kelengkapan informasi utama daripada analisis tambahan yang repetitif jika kuota token menipis.
 
 
 ---

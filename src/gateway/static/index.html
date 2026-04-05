@@ -404,10 +404,11 @@
         }
 
         .message-user .bubble {
+            position: relative;
             background: var(--user-bubble);
             color: white;
-            max-width: 70%;
-            padding: 12px 18px;
+            max-width: 75%;
+            padding: 12px 18px 24px;
             border-radius: 20px 20px 4px 20px;
             font-size: 14px;
             line-height: 1.5;
@@ -422,10 +423,11 @@
         }
 
         .message-agent .bubble {
+            position: relative;
             background: var(--bg-surface);
             border: 1px solid var(--border);
             max-width: 85%;
-            padding: 14px 18px;
+            padding: 14px 18px 30px;
             border-radius: 20px 20px 20px 4px;
             font-size: 14px;
             line-height: 1.6;
@@ -493,6 +495,74 @@
         .message-user,
         .message-agent {
             animation: fadeInUp 0.2s ease-out forwards;
+        }
+
+        /* Bubble Features */
+        .bubble-copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.05);
+            border: none;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: inherit;
+            opacity: 0;
+            transition: all 0.2s;
+            z-index: 5;
+        }
+
+        .message-user .bubble-copy-btn {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+
+        .bubble:hover .bubble-copy-btn {
+            opacity: 0.8;
+        }
+
+        .bubble-copy-btn:hover {
+            opacity: 1 !important;
+            background: rgba(0,0,0,0.15);
+        }
+
+        .bubble-footer {
+            position: absolute;
+            bottom: 6px;
+            right: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 10px;
+            color: rgba(0,0,0,0.35);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .message-user .bubble-footer {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .bubble-stats {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding-right: 8px;
+            border-right: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .message-user .bubble-stats {
+            border-right: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .bubble-stats span {
+            font-weight: 500;
         }
 
         /* Input Area */
@@ -927,6 +997,20 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Pesan disalin!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                showToast('Gagal menyalin pesan', 'error');
+            });
+        }
+
+        function getFormattedTime() {
+            const now = new Date();
+            return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        }
+
         // ============================================
         // SKILL MANAGEMENT
         // ============================================
@@ -1323,18 +1407,49 @@
         function appendUserMessage(text) {
             const div = document.createElement('div');
             div.className = 'message-user';
-            div.innerHTML = `<div class="bubble">${renderContent(text)}</div>`;
+            const time = getFormattedTime();
+            div.innerHTML = `
+                <div class="bubble">
+                    <button class="bubble-copy-btn" title="Salin pesan" onclick="copyToClipboard(\`${text.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋</button>
+                    <div class="bubble-text">${renderContent(text)}</div>
+                    <div class="bubble-footer">
+                        <span class="bubble-time">${time}</span>
+                    </div>
+                </div>
+            `;
             messagesContainer.appendChild(div);
             scrollToBottom();
         }
 
-        function appendAgentMessage(text) {
+        function appendAgentMessage(text, stats = null) {
             const div = document.createElement('div');
             div.className = 'message-agent';
+            const time = getFormattedTime();
+            
+            let statsHtml = '';
+            if (stats) {
+                statsHtml = `
+                    <div class="bubble-stats">
+                        Req: <span>${stats.req || '-'}</span> · 
+                        In: <span>${stats.in || '-'}</span> · 
+                        Out: <span>${stats.out || '-'}</span> · 
+                        ∑: <span>${stats.total || '-'}</span> · 
+                        ⏱: <span>${stats.latency || '-'}s</span>
+                    </div>
+                `;
+            }
+
             div.innerHTML = `
                 <div class="avatar">🤖</div>
                 <div class="content">
-                    <div class="bubble">${renderContent(text)}</div>
+                    <div class="bubble">
+                        <button class="bubble-copy-btn" title="Salin pesan" onclick="copyToClipboard(\`${text.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋</button>
+                        <div class="bubble-text">${renderContent(text)}</div>
+                        <div class="bubble-footer">
+                            ${statsHtml}
+                            <span class="bubble-time">${time}</span>
+                        </div>
+                    </div>
                 </div>
             `;
             messagesContainer.appendChild(div);
@@ -1343,14 +1458,22 @@
 
         function startAgentMessage() {
             currentAgentContent = '';
+            typingStartTime = Date.now();
             currentAgentMessage = document.createElement('div');
             currentAgentMessage.className = 'message-agent';
+            const time = getFormattedTime();
             currentAgentMessage.innerHTML = `
                 <div class="avatar">🤖</div>
                 <div class="content">
                     <div class="bubble">
-                        <div class="typing-indicator">
-                            <span></span><span></span><span></span>
+                        <div class="bubble-text">
+                            <div class="typing-indicator">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                        <div class="bubble-footer">
+                            <div class="bubble-stats hidden"></div>
+                            <span class="bubble-time">${time}</span>
                         </div>
                     </div>
                 </div>
@@ -1386,17 +1509,20 @@
                 }
             } else {
                 // Dots sudah hilang, langsung append teks
-                bubble.innerHTML = renderContent(currentAgentContent);
+                const textContainer = bubble.querySelector('.bubble-text');
+                textContainer.innerHTML = renderContent(currentAgentContent);
                 scrollToBottom();
             }
         }
 
-        function replaceDotsWithText(bubble) {
+        function replaceDotsWithText() {
+            const bubble = currentAgentMessage.querySelector('.bubble');
             const indicator = bubble.querySelector('.typing-indicator');
             if (indicator) {
                 indicator.remove();
             }
-            bubble.innerHTML = renderContent(currentAgentContent);
+            const textContainer = bubble.querySelector('.bubble-text');
+            textContainer.innerHTML = renderContent(currentAgentContent);
             scrollToBottom();
         }
 
@@ -1458,13 +1584,40 @@
             const indicator = bubble.querySelector('.typing-indicator');
             if (indicator) indicator.remove();
 
-            bubble.innerHTML = renderContent(currentAgentContent);
+            // Set final content
+            const textContainer = bubble.querySelector('.bubble-text');
+            textContainer.innerHTML = renderContent(currentAgentContent);
             
-            // Update stats
-            if (data.usage) {
+            // Add copy button if not present
+            if (!bubble.querySelector('.bubble-copy-btn')) {
+                const btn = document.createElement('button');
+                btn.className = 'bubble-copy-btn';
+                btn.title = 'Salin pesan';
+                const escapedText = currentAgentContent.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                btn.setAttribute('onclick', `copyToClipboard(\`${escapedText}\`)`);
+                btn.innerHTML = '📋';
+                bubble.insertBefore(btn, bubble.firstChild);
+            }
+
+            // Update stats for the bubble
+            const usage = data.usage || (data.usage_per_message);
+            if (usage) {
+                const latency = ((Date.now() - sessionStartTime) / 1000).toFixed(1);
                 sessionStats.requests++;
-                sessionStats.inputTokens += data.usage.input_tokens || 0;
-                sessionStats.outputTokens += data.usage.output_tokens || 0;
+                sessionStats.inputTokens += usage.prompt_tokens || usage.input_tokens || 0;
+                sessionStats.outputTokens += usage.completion_tokens || usage.output_tokens || 0;
+                
+                const statsContainer = bubble.querySelector('.bubble-stats');
+                if (statsContainer) {
+                    statsContainer.classList.remove('hidden');
+                    statsContainer.innerHTML = `
+                        Req: <span>${sessionStats.requests}</span> · 
+                        In: <span>${usage.prompt_tokens || usage.input_tokens || '-'}</span> · 
+                        Out: <span>${usage.completion_tokens || usage.output_tokens || '-'}</span> · 
+                        ∑: <span>${(usage.prompt_tokens || usage.input_tokens || 0) + (usage.completion_tokens || usage.output_tokens || 0)}</span> · 
+                        ⏱: <span>${latency}s</span>
+                    `;
+                }
                 updateStatsBar();
             }
             
@@ -1505,9 +1658,6 @@
                 }
                 lastUserMessage = '';
             }
-            
-            // Refresh sessions to get updated names
-            loadSessions();
             
             currentAgentMessage = null;
             currentAgentContent = '';

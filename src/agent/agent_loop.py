@@ -170,6 +170,10 @@ class AgentLoop:
 
         response = self._llm_client.chat(system=system, messages=messages)
         assistant_content = response.get("content", "")
+        finish_reason = response.get("finish_reason")
+
+        if finish_reason == "length":
+            assistant_content += "\n\n⚠️ **Output terhenti karena batas panjang teks.** Silahkan ketik **'Lanjut'** untuk meneruskan bagian berikutnya."
 
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
 
@@ -184,6 +188,7 @@ class AgentLoop:
             "usage": response.get("usage", {}),
             "references_loaded": list(references.keys()),
             "tool_results": tool_results,
+            "finish_reason": finish_reason,
         }
 
     def run_stream(self, user_input: str) -> Generator[tuple[str, dict | None], None, dict[str, Any]]:
@@ -260,13 +265,24 @@ class AgentLoop:
 
         full_response = []
         captured_usage = None
-        for token, usage in self._llm_client.stream(system=system, messages=messages):
+        last_finish_reason = None
+        
+        for token, usage, finish_reason in self._llm_client.stream(system=system, messages=messages):
             full_response.append(token)
             if usage:
                 captured_usage = usage
+            if finish_reason:
+                last_finish_reason = finish_reason
             yield (token, usage)
 
         assistant_content = "".join(full_response)
+        
+        if last_finish_reason == "length":
+            truncate_msg = "\n\n⚠️ **Output terhenti karena batas panjang teks.** Silahkan ketik **'Lanjut'** untuk meneruskan bagian berikutnya."
+            assistant_content += truncate_msg
+            for char in truncate_msg:
+                yield (char, None)
+
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
 
         tool_results = self._execute_tool_calls(assistant_content)
@@ -280,6 +296,7 @@ class AgentLoop:
             "references_loaded": list(references.keys()),
             "tool_results": tool_results,
             "usage": captured_usage,
+            "finish_reason": last_finish_reason,
         }
 
     def _detect_language(self, text: str) -> str:

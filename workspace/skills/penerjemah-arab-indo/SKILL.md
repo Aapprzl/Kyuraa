@@ -50,25 +50,6 @@ ATURAN WAJIB:
 - Jika user berkata akan mengirim teks (contoh: 'tunggu', 'nanti saya kirim', 'ada') → cukup balas singkat seperti 'Siap, saya tunggu.' JANGAN sebut mode atau gaya apapun sebelum teks benar-benar dikirim
 
 # Penerjemah Arab–Indonesia Akademik
-
-Skill ini menghasilkan terjemahan dua arah **Indonesia ↔ Arab** yang akurat secara gramatikal
-dan sesuai kaidah penulisan ilmiah. Alur kerja: **deteksi arah → konfirmasi gaya & mode →
-analisis sumber → pemetaan → terjemahan → output terformat**.
-
-> ⚠️ **PRINSIP DASAR:** Semua proses analisis dijalankan **secara internal** — tidak ditampilkan
-> ke pengguna. **Yang ditampilkan hanya blok output `━━━` di Fase 3.** Melanggar ini menyebabkan
-> output terpotong karena kehabisan token.
-
----
-
-## Referensi
-
-| File | Isi | Kapan Dibaca |
-|------|-----|--------------|
-| `references/00-bahasa-indonesia.md` | Gramatikal BI lengkap | Indo→Arab: selalu |
-| `references/01-nahwu.md` | Sintaksis Arab §1–23 | Dua arah: selalu. §19–23 wajib jika ada klausa bersarang, verba mental, urutan tidak lazim, unsur hilang, إِنَّمَا/نفي+إلا |
-| `references/02-sharaf.md` | Morfologi Arab lengkap | Dua arah: selalu |
-| `references/03-balaghah.md` | Retorika Arab §1–14 | Baca jika teks ada: uslub sastra/Qur'ani, إِنَّمَا atau نفي+إلا, بَلْ/لَيْسَ...بَلْ (idhrab §10), pertanyaan retoris (§11), ijmal→tafshil (§12), kontras بَيْنَمَا/فِي حِيْنِ (§13) |
 | `references/04-special-cases.md` | Bilangan, idiom, kasus khusus | Baca jika ada kasus yang relevan |
 | `references/05-akademik.md` | Karya ilmiah Arab: kosakata, frasa transisi, uslub | Dua arah: selalu |
 | `references/06-kolokasi.md` | Kolokasi Arab akademik — §1–10 | Dua arah: selalu untuk setiap verba |
