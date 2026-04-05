@@ -13,6 +13,7 @@ python-dotenv>=1.0.0         # Load API key dari .env
 
 # Utilities
 aiofiles>=23.0                # Async file I/O
+psutil>=5.9.0                 # Process monitoring & PID lock
 python-docx>=1.1.0           # Buat/baca file Word .docx
 chardet>=5.2.0               # Deteksi encoding file Arab
 

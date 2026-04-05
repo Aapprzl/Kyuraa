@@ -26,6 +26,7 @@ class SessionStore:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
+                    name TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -68,7 +69,21 @@ class SessionStore:
                 "UPDATE sessions SET updated_at = ? WHERE session_id = ?",
                 (now, session_id)
             )
+            
+            if role == "user":
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+                    (session_id,)
+                ).fetchone()
+                if row and row[0] == 1:
+                    name = content[:50].strip()
+                    conn.execute(
+                        "UPDATE sessions SET name = ?, updated_at = ? WHERE session_id = ?",
+                        (name, now, session_id)
+                    )
+            
             conn.commit()
+        
         log("memory", f"Message saved — session: {session_id}")
         return True
 
@@ -95,6 +110,53 @@ class SessionStore:
     def list_sessions(self) -> list[dict]:
         with self._get_conn() as conn:
             rows = conn.execute(
-                "SELECT session_id, created_at, updated_at FROM sessions ORDER BY updated_at DESC"
+                """
+                SELECT s.session_id, s.name, s.created_at, s.updated_at, COUNT(m.id) as message_count
+                FROM sessions s
+                LEFT JOIN messages m ON s.session_id = m.session_id
+                GROUP BY s.session_id
+                ORDER BY s.updated_at DESC
+                """
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def get_session_messages(self, session_id: str) -> list[dict]:
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT role, content, timestamp FROM messages
+                WHERE session_id = ?
+                ORDER BY id ASC
+                """,
+                (session_id,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_session_name(self, session_id: str, name: str) -> bool:
+        now = datetime.now().isoformat()
+        with self._get_conn() as conn:
+            conn.execute(
+                "UPDATE sessions SET name = ?, updated_at = ? WHERE session_id = ?",
+                (name, now, session_id)
+            )
+            conn.commit()
+        return True
+
+    def delete_session(self, session_id: str) -> bool:
+        with self._get_conn() as conn:
+            conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+            conn.commit()
+        return True
+
+    def auto_name_session(self, session_id: str) -> str | None:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id ASC LIMIT 1",
+                (session_id,)
+            ).fetchone()
+        if row:
+            name = row[0][:50].strip()
+            self.update_session_name(session_id, name)
+            return name
+        return None

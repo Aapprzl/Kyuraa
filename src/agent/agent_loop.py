@@ -114,11 +114,21 @@ class AgentLoop:
             desc = skill_info.get("description", "")
             if isinstance(desc, list):
                 desc = " ".join(desc)
+            
+            activation_msg = f"✅ Skill **{data}** aktif!"
+            if desc:
+                activation_msg += f"\n\n{desc}\n"
+            else:
+                activation_msg += "\n"
+            
+            action_verb = "Kirim perintah" if not desc else "Mulai"
+            activation_msg += f"{action_verb} untuk menggunakan skill ini."
+            
             return {
                 "session_id": self._session_id,
                 "language": "mixed",
                 "style": "command",
-                "response": f"✅ Skill **{data}** aktif!\n\n{desc}\n\nSilakan kirim teks yang ingin diterjemahkan.",
+                "response": activation_msg,
                 "skill_activated": data,
                 "tool_results": [],
             }
@@ -186,14 +196,23 @@ class AgentLoop:
             desc = skill_info.get("description", "")
             if isinstance(desc, list):
                 desc = " ".join(desc)
-            response_text = f"✅ Skill **{data}** aktif!\n\n{desc}\n\nSilakan kirim teks yang ingin diterjemahkan."
-            for char in response_text:
+            
+            activation_msg = f"✅ Skill **{data}** aktif!"
+            if desc:
+                activation_msg += f"\n\n{desc}\n"
+            else:
+                activation_msg += "\n"
+            
+            action_verb = "Kirim perintah" if not desc else "Mulai"
+            activation_msg += f"{action_verb} untuk menggunakan skill ini."
+            
+            for char in activation_msg:
                 yield (char, None)
             return {
                 "session_id": self._session_id,
                 "language": "mixed",
                 "style": "command",
-                "response": response_text,
+                "response": activation_msg,
                 "skill_activated": data,
                 "tool_results": [],
             }

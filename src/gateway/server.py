@@ -1,10 +1,14 @@
+import atexit
 import json
 import logging
 import os
 import signal
+import socket
 import sys
 from pathlib import Path
 from typing import Any, Optional
+
+import psutil
 
 # Ensure project root is in sys.path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -30,15 +34,84 @@ class SkillActivateSchema(BaseModel):
     skill_name: str
 
 
+# ============================================
+# SINGLE INSTANCE ENFORCEMENT
+# ============================================
+
+def check_port_available(host: str, port: int) -> bool:
+    """Try to bind a port; return True if available."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+
+def write_pid_lock(port: int) -> Path:
+    lock_file = Path(f'.kyuraa-lock-{port}')
+    if lock_file.exists():
+        old_pid = int(lock_file.read_text().strip())
+        if psutil.pid_exists(old_pid):
+            print(f"\n❌ Kyuraa sudah berjalan (PID: {old_pid})")
+            print(f"   Tutup instance yang lama terlebih dahulu.\n")
+            sys.exit(1)
+        else:
+            lock_file.unlink(missing_ok=True)
+
+    lock_file.write_text(str(os.getpid()))
+    atexit.register(lambda: lock_file.unlink(missing_ok=True))
+    return lock_file
+
+
+# Load env at module level so `app` below respects .env
+def _load_env_early():
+    settings_path = Path("workspace/settings.json")
+    if settings_path.exists():
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                for key, value in json.load(f).items():
+                    os.environ[key] = value
+        except Exception:
+            pass
+    env_path = Path(".env")
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if "=" in line and not line.startswith("#"):
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_env_early()
+_DEFAULT_PORT = int(os.environ.get("GATEWAY_PORT", "8766"))
+
+
 class GatewayServer:
-    def __init__(self, host: str = "localhost", port: int = 8765):
+    def __init__(self, host: str = "localhost", port: int = _DEFAULT_PORT):
         self._host = host
         self._port = port
+
+        # Enforce single instance — check BEFORE creating app
+        if not check_port_available(self._host, self._port):
+            print(f"\n❌ ERROR: Port {self._port} sudah digunakan!")
+            print(f"   Kemungkinan Kyuraa sudah berjalan di instance lain.")
+            print(f"   Tutup instance yang lama terlebih dahulu.\n")
+            sys.exit(1)
+        write_pid_lock(self._port)
+
         self._app = FastAPI(title="Agent Gateway")
         self._active_sessions: dict[str, dict] = {}
         self._agents: dict[str, Any] = {}
         self._running = False
         self._session_buffers: dict[str, list[str]] = {}
+        self._active_skill: str | None = None
+        self._stats = {
+            'total_requests': 0,
+            'input_tokens': 0,
+            'output_tokens': 0
+        }
 
         self._setup_routes()
 
@@ -46,8 +119,17 @@ class GatewayServer:
         @self._app.get("/info")
         async def info():
             return {
-                "model": os.environ.get("AGENT_MODEL", "unknown"),
+                "model": os.environ.get("AGENT_MODEL", "qwen/qwen3.6-plus:free"),
                 "version": "1.0.0"
+            }
+
+        @self._app.get("/stats")
+        async def get_stats():
+            return {
+                "total_requests": self._stats['total_requests'],
+                "input_tokens": self._stats['input_tokens'],
+                "output_tokens": self._stats['output_tokens'],
+                "total_tokens": self._stats['input_tokens'] + self._stats['output_tokens'],
             }
 
         @self._app.get("/settings")
@@ -147,8 +229,17 @@ class GatewayServer:
                             })
                             self._session_buffers[session_id].append(token)
 
-                        input_tokens = captured_usage.prompt_tokens if captured_usage else 0
-                        output_tokens = captured_usage.completion_tokens if captured_usage else 0
+                        if captured_usage:
+                            input_tokens = captured_usage.prompt_tokens if hasattr(captured_usage, "prompt_tokens") else captured_usage.get("prompt_tokens", 0)
+                            output_tokens = captured_usage.completion_tokens if hasattr(captured_usage, "completion_tokens") else captured_usage.get("completion_tokens", 0)
+                        else:
+                            input_tokens = max(1, len(user_input) // 4)
+                            output_tokens = max(1, len("".join(self._session_buffers.get(session_id, []))) // 4)
+
+                        self._stats['total_requests'] += 1
+                        self._stats['input_tokens'] += input_tokens
+                        self._stats['output_tokens'] += output_tokens
+
                         await websocket.send_json({
                             "type": "done",
                             "session_id": session_id,
@@ -205,15 +296,63 @@ class GatewayServer:
             from src.memory.session_store import SessionStore
             store = SessionStore()
             sessions = store.list_sessions()
+            log("gateway", f"Listed sessions: {len(sessions)}")
             return {"sessions": sessions}
 
-        @self._app.delete("/session/{session_id}")
+        @self._app.delete("/sessions/cleanup")
+        async def cleanup_empty_sessions():
+            import sqlite3
+            from pathlib import Path
+            db_path = Path("workspace/memory/sessions.db")
+            if db_path.exists():
+                with sqlite3.connect(str(db_path)) as conn:
+                    cursor = conn.execute("""
+                        DELETE FROM sessions 
+                        WHERE session_id NOT IN (
+                            SELECT DISTINCT session_id FROM messages
+                        )
+                    """)
+                    deleted = cursor.rowcount
+                    conn.commit()
+                    log("gateway", f"Cleaned up {deleted} empty sessions")
+                    return {"deleted": deleted}
+            return {"deleted": 0}
+
+        @self._app.get("/sessions/{session_id}/messages")
+        async def get_session_messages(session_id: str):
+            from src.memory.session_store import SessionStore
+            store = SessionStore()
+            sessions = store.list_sessions()
+            session = next((s for s in sessions if s["session_id"] == session_id), None)
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+            messages = store.get_session_messages(session_id)
+            log("gateway", f"Retrieved messages for session: {session_id}")
+            return {
+                "session_id": session_id,
+                "name": session.get("name"),
+                "messages": messages
+            }
+
+        @self._app.delete("/sessions/{session_id}")
         async def delete_session(session_id: str):
             from src.memory.session_store import SessionStore
             store = SessionStore()
-            result = store.clear_session(session_id)
+            result = store.delete_session(session_id)
             self._cleanup_session(session_id)
-            return {"deleted": result, "session_id": session_id}
+            log("gateway", f"Deleted session: {session_id}")
+            return {"success": True}
+
+        @self._app.patch("/sessions/{session_id}/name")
+        async def update_session_name(session_id: str, body: dict):
+            from src.memory.session_store import SessionStore
+            store = SessionStore()
+            new_name = body.get("name", "").strip()
+            if not new_name:
+                raise HTTPException(status_code=400, detail="Name cannot be empty")
+            store.update_session_name(session_id, new_name)
+            log("gateway", f"Updated session name: {session_id} -> {new_name}")
+            return {"success": True}
 
         @self._app.get("/files")
         async def list_files():
@@ -233,11 +372,11 @@ class GatewayServer:
                 skills_data.append({
                     "name": name,
                     "description": desc,
-                    "is_active": agent._skill_manager.active_skill == name,
+                    "is_active": self._active_skill == name,
                 })
             return {
                 "skills": skills_data,
-                "active_skill": agent._skill_manager.active_skill,
+                "active_skill": self._active_skill,
             }
 
         @self._app.post("/skills/activate")
@@ -246,6 +385,7 @@ class GatewayServer:
             skill_name = payload.skill_name.strip()
             try:
                 agent._skill_manager.activate(skill_name)
+                self._active_skill = skill_name
                 log("gateway", f"Skill activated via API: {skill_name}")
                 return {
                     "success": True,
@@ -257,9 +397,9 @@ class GatewayServer:
         @self._app.post("/skills/deactivate")
         async def deactivate_skill():
             agent = self._create_agent("__system__")
-            current = agent._skill_manager.active_skill
             agent._skill_manager.deactivate()
-            log("gateway", f"Skill deactivated: {current}")
+            self._active_skill = None
+            log("gateway", f"Skill deactivated")
             return {"success": True}
 
         @self._app.get("/skills/template")
@@ -300,11 +440,11 @@ class GatewayServer:
                     "version": version,
                     "references_count": refs_count,
                     "references": refs_list,
-                    "is_active": agent._skill_manager.active_skill == name,
+                    "is_active": self._active_skill == name,
                 })
             return {
                 "skills": skills_data,
-                "active_skill": agent._skill_manager.active_skill,
+                "active_skill": self._active_skill,
                 "total": len(skills_data),
             }
 
@@ -324,11 +464,12 @@ class GatewayServer:
 
     def run(self):
         self._running = True
+
         log("gateway", f"Server running on http://{self._host}:{self._port}")
         uvicorn.run(self._app, host=self._host, port=self._port, log_level="warning")
 
 
-def print_banner(skill_count: int = 0):
+def print_banner(skill_count: int = 0, port: int = _DEFAULT_PORT):
     banner = """
 \033[96m██╗  ██╗██╗   ██╗██╗   ██╗██████╗  █████╗  █████╗
 ██║ ██╔╝╚██╗ ██╔╝██║   ██║██╔══██╗██╔══██╗██╔══██╗
@@ -339,9 +480,9 @@ def print_banner(skill_count: int = 0):
 \033[0m
 \033[96mv1.0.0 — Personal AI Agent\033[0m
 \033[90mSkill aktif:\033[0m \033[92m{skill_count} skill terdeteksi\033[0m
-\033[90mGateway:\033[0m \033[96mhttp://127.0.0.1:8766\033[0m
+\033[90mGateway:\033[0m \033[96mhttp://127.0.0.1:{port}\033[0m
 \033[90m─────────────────────────────────────────────────────\033[0m
-""".format(skill_count=skill_count)
+""".format(skill_count=skill_count, port=port)
     print(banner)
 
 
@@ -372,7 +513,7 @@ def main():
                 key, _, value = line.partition("=")
                 os.environ.setdefault(key.strip(), value.strip())
 
-    port = int(os.environ.get("GATEWAY_PORT", 8765))
+    port = int(os.environ.get("GATEWAY_PORT", _DEFAULT_PORT))
     host = os.environ.get("GATEWAY_HOST", "localhost")
 
     server = GatewayServer(host=host, port=port)
@@ -380,7 +521,7 @@ def main():
     from src.agent.agent_loop import AgentLoop
     temp_agent = AgentLoop(session_id="__system__")
     skill_count = len(temp_agent._skill_manager.available_skills)
-    print_banner(skill_count)
+    print_banner(skill_count, port)
 
     def signal_handler(sig, frame):
         log("gateway", "Shutting down...")
@@ -397,4 +538,5 @@ if __name__ == "__main__":
     main()
 
 
-app = GatewayServer()._app
+if __name__ != "__main__":
+    app = GatewayServer()._app

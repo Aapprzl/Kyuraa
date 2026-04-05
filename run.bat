@@ -1,21 +1,10 @@
 @echo off
-echo.
-echo  ^| ^| ^|  ^| ^| ^|^|   ^| ^| ^|^|   ^| ^|^^^^  ^|  ^|^^^|^|  ^|^^^|^|
-echo  ^| ^|^|^ ^|^| ^|^|   ^| ^| ^|^|   ^| ^|^^  ^|^|^ ^|^|^^^   ^|^|^^^
-echo  ^|^|^|^|^|^|^   ^| ^|   ^| ^| ^|^|   ^| ^|^|^|^|^  ^|^|^|^|^|   ^|^|^|^|^|
-echo  ^| ^^^       ^|^|^|^|^^  ^|^|^|^|^|^ ^|^|^^  ^|^|^ ^|^|^^^   ^|^|^^^
-echo  ^|           ^^^    ^^^   ^| ^|  ^|^|^ ^|^|^|^|^|   ^|^|^|^|^|
-echo.
-echo          v1.0.0  --  Personal AI Agent
-echo  ================================================
-echo.
 cd /d D:\PROJECT_APP\Kyuraa
-if exist venv\Scripts\activate.bat (
-    call venv\Scripts\activate.bat
-) else (
-    echo [WARN] Virtual environment tidak ditemukan, lanjut tanpa aktivasi...
+call venv\Scripts\activate.bat
+echo Membebaskan port 8766...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8766 ^| findstr LISTENING') do (
+    taskkill /PID %%a /F >nul 2>&1
 )
-echo Memulai server...
-timeout /t 1 /nobreak > nul
-start /w "" cmd /c "start http://127.0.0.1:8766"
+timeout /t 1 /nobreak >nul
 uvicorn src.gateway.server:app --host 127.0.0.1 --port 8766 --reload
+pause

@@ -1,602 +1,928 @@
 <!DOCTYPE html>
-<html lang="id" class="dark">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kyuraa - Personal AI Assistant</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23D97757'/><text x='50' y='68' font-family='Inter, sans-serif' font-size='55' font-weight='600' fill='white' text-anchor='middle'>K</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            base: '#080c10',
-                            surface: '#0f172a',
-                            elevated: '#1e293b',
-                            border: '#334155',
-                            accent: '#06b6d4',
-                            accentDim: '#0891b2',
-                            arabic: '#fef3c7',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-                        arabic: ['Noto Sans Arabic', 'serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-base: #F9F7F4;
+            --bg-surface: #FFFFFF;
+            --bg-sidebar: #F0EDE8;
+            --bg-hover: #E8E4DF;
+            --border: #E2DDD8;
+            --border-strong: #C8C2BB;
+            --accent: #D97757;
+            --accent-hover: #C4633E;
+            --accent-light: #FDF0EB;
+            --text-primary: #1A1814;
+            --text-secondary: #6B6560;
+            --text-muted: #9B938D;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --user-bubble: #D97757;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #080c10;
-            color: #e2e8f0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
         }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
+            height: 4px;
         }
         ::-webkit-scrollbar-track {
-            background: transparent;
+            background: var(--bg-sidebar);
         }
         ::-webkit-scrollbar-thumb {
-            background: #1e293b;
-            border-radius: 10px;
+            background: var(--border);
+            border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #334155;
+            background: var(--border-strong);
         }
 
-        /* Animations */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* Messages and sidebar scrollbar */
+        #sessions-list::-webkit-scrollbar,
+        #messages-container::-webkit-scrollbar {
+            width: 4px;
         }
-        .animate-fade {
-            animation: fadeIn 0.3s ease-out forwards;
-        }
-
-        @keyframes modalIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .animate-modal {
-            animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        #sessions-list::-webkit-scrollbar-thumb,
+        #messages-container::-webkit-scrollbar-thumb {
+            background: var(--border);
         }
 
-        .typing-dot {
+        /* Header */
+        #app-header {
+            display: grid;
+            grid-template-columns: 260px 1fr auto;
+            align-items: center;
+            height: 56px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-surface);
+            padding: 0 16px;
+            flex-shrink: 0;
+        }
+
+        #app-header button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            transition: all 0.15s;
+        }
+
+        #app-header button:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        #header-left {
+            display: flex;
+            align-items: center;
+        }
+
+        #sidebar-toggle {
+            font-size: 20px;
+        }
+
+        #header-center {
+            text-align: center;
+        }
+
+        #header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .logo-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .logo-version {
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-muted);
+            background: var(--bg-sidebar);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* When sidebar is collapsed, left column goes away */
+        body:has(#sidebar.collapsed) #app-header {
+            grid-template-columns: auto 1fr auto;
+        }
+
+        #model-badge {
+            font-size: 11px;
+            color: var(--text-muted);
+            padding: 4px 10px;
+            background: var(--bg-sidebar);
+            border-radius: 16px;
+        }
+
+        #connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: var(--bg-sidebar);
+            border-radius: 16px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .skill-indicator {
+            display: flex;
+            align-items: center;
+        }
+
+        .skill-badge {
+            font-size: 11px;
+            padding: 4px 10px;
+            background: var(--accent-light);
+            color: var(--accent);
+            border-radius: 16px;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            transition: background-color 0.3s ease;
+        }
+
+        .status-dot.connected {
+            background-color: #27ae60;
+            box-shadow: 0 0 6px rgba(39, 174, 96, 0.5);
+        }
+
+        .status-dot.disconnected {
+            background-color: #e74c3c;
+            box-shadow: 0 0 6px rgba(231, 76, 60, 0.5);
+        }
+
+        .status-dot.connecting {
+            background-color: #f39c12;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+
+        #user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* Main Layout */
+        #app-layout {
+            display: flex;
+            height: calc(100vh - 56px);
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 260px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: transform 0.25s ease, width 0.25s ease, opacity 0.25s ease;
+        }
+
+        #sidebar.collapsed {
+            transform: translateX(-100%);
+            width: 0;
+            min-width: 0;
+            opacity: 0;
+            border: none;
+            overflow: hidden;
+        }
+
+        #new-session-btn {
+            margin: 16px;
+            padding: 12px 16px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        #new-session-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        #sessions-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 12px;
+        }
+
+        .session-item {
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 4px;
+            transition: background 0.15s;
+            border: 1px solid transparent;
+        }
+
+        .session-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .session-item.active {
+            background: var(--bg-surface);
+            border-color: var(--border);
+        }
+
+        .session-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .session-preview {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #sidebar-footer {
+            padding: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        #sidebar-settings-btn {
+            width: 100%;
+            padding: 10px;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        #sidebar-settings-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        /* Chat Area */
+        #chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg-base);
+        }
+
+        /* Welcome Screen */
+        #welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px;
+        }
+
+        #welcome-screen h1 {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        #welcome-screen p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            max-width: 400px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        #example-prompts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            max-width: 500px;
+        }
+
+        .example-prompt {
+            padding: 10px 16px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .example-prompt:hover {
+            background: var(--accent-light);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Messages Container */
+        #messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* User Bubble */
+        .message-user {
+            display: flex;
+            justify-content: flex-end;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .message-user .bubble {
+            background: var(--user-bubble);
+            color: white;
+            max-width: 70%;
+            padding: 12px 18px;
+            border-radius: 20px 20px 4px 20px;
+            font-size: 14px;
+            line-height: 1.5;
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Agent Bubble */
+        .message-agent {
+            display: flex;
+            justify-content: flex-start;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .message-agent .bubble {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            max-width: 85%;
+            padding: 14px 18px;
+            border-radius: 20px 20px 20px 4px;
+            font-size: 14px;
+            line-height: 1.6;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .message-agent .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-sidebar);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        .message-agent .content {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        /* Typing Indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
             animation: bounce 1.4s infinite ease-in-out;
         }
-        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
-        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0s; }
+
         @keyframes bounce {
             0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
             40% { transform: scale(1.1); opacity: 1; }
         }
 
-        /* Arabic Block styling */
-        .arabic-block {
-            font-family: 'Noto Sans Arabic', serif;
-            color: #fef3c7;
-            direction: rtl;
-            line-height: 1.8;
-            background: rgba(15, 23, 42, 0.5);
-            border-right: 4px solid #06b6d4;
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
-        /* Interactive active states */
-        .segment-active {
-            box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Sidebar Transition */
-        #history-sidebar {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        #history-sidebar.closed {
-            transform: translateX(100%);
-        }
-        #main-content {
-            transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
         }
 
-        #disconnected-overlay {
-            animation: fadeIn 0.3s ease-out forwards;
+        /* Message bubbles animation */
+        .message-user,
+        .message-agent {
+            animation: fadeInUp 0.2s ease-out forwards;
         }
 
-        .modal-backdrop {
-            background-color: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(4px);
+        /* Input Area */
+        #input-area {
+            border-top: 1px solid var(--border);
+            padding: 16px 24px 20px;
+            background: var(--bg-surface);
+            flex-shrink: 0;
         }
 
-        /* Settings Style */
-        .settings-card {
-            background: rgba(15, 23, 42, 0.4);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        #skill-badge-active {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--accent-light);
+            border-radius: 20px;
+            margin-bottom: 12px;
+            width: fit-content;
         }
-        .form-input {
-            background: rgba(8, 12, 16, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            transition: all 0.2s ease;
+
+        #skill-badge-active .skill-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
         }
-        .form-input:focus {
-            border-color: #06b6d4;
-            box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.1);
+
+        #skill-badge-active .skill-remove {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            padding: 0;
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        #input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 12px 16px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        #input-wrapper:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.1);
+        }
+
+        #message-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            color: var(--text-primary);
+            resize: none;
+            max-height: 120px;
+            line-height: 1.5;
+            outline: none;
+            font-family: inherit;
+        }
+
+        #message-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        #send-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            border: none;
+            background: var(--accent);
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.1s;
+            flex-shrink: 0;
+        }
+
+        #send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        #send-btn:active {
+            transform: scale(0.95);
+        }
+
+        #send-btn:disabled {
+            background: var(--border-strong);
+            cursor: not-allowed;
+        }
+
+        #input-footer {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Settings Panel */
+        #settings-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            justify-content: flex-end;
+            z-index: 100;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        #settings-overlay.hidden {
+            display: none;
+        }
+
+        #settings-panel {
+            width: 400px;
+            max-width: 100%;
+            background: var(--bg-surface);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            animation: scaleIn 0.2s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        #settings-panel header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #settings-panel h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        #settings-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+        }
+
+        #settings-close:hover {
+            background: var(--bg-hover);
+        }
+
+        #settings-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .settings-section {
+            margin-bottom: 24px;
+        }
+
+        .settings-section h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .settings-field {
+            margin-bottom: 16px;
+        }
+
+        .settings-field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .settings-field input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            transition: border-color 0.2s;
+        }
+
+        .settings-field input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .settings-field input::placeholder {
+            color: var(--text-muted);
+        }
+
+        #save-settings-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        #save-settings-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Hidden utility */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #sidebar {
+                position: absolute;
+                z-index: 50;
+                height: calc(100vh - 56px);
+                top: 56px;
+            }
+
+            #sidebar.collapsed {
+                transform: translateX(-100%);
+            }
         }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
-    <!-- Header -->
-    <header class="h-14 border-b border-white/5 bg-brand-base flex items-center px-6 justify-between shrink-0 z-30">
-        <div class="flex items-center gap-3">
-            <h1 class="text-sm font-bold tracking-tight text-white/90">
-                Kyuraa <span class="text-xs font-normal text-cyan-400 ml-1.5 opacity-80">v1.0</span>
-            </h1>
+<body>
+    <!-- HEADER -->
+    <header id='app-header'>
+        <div id='header-left'>
+            <button id='sidebar-toggle'>☰</button>
         </div>
-
-        <div class="flex items-center gap-2">
-            <div id="model-badge" class="hidden md:flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1 text-[10px] font-medium text-slate-400 hover:border-cyan-500/30 transition-colors">
-                <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-                <span id="model-name">Loading model...</span>
+        <div id='header-center'>
+            <span class='logo-text'>Kyuraa</span>
+            <span class='logo-version'>v1.0</span>
+        </div>
+        <div id='header-right'>
+            <div id='connection-status'>
+                <span class='status-dot disconnected'></span>
+                <span class='status-text'>Offline</span>
             </div>
-            <div id="skill-badge" class="hidden items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-3 py-1 text-[10px] font-bold text-amber-400 hover:bg-amber-500/20 transition-colors">
-                <span>🎯</span>
-                <span id="skill-name">skill</span>
-                <button onclick="deactivateSkill()" class="ml-1 w-4 h-4 rounded-full hover:bg-amber-500/30 flex items-center justify-center text-[8px] transition-colors" title="Nonaktifkan skill">✕</button>
-            </div>
-            <div class="bg-slate-900 border border-white/5 rounded-full px-3 py-1 flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                <span id="session-display">Session ID: ...</span>
-            </div>
-            <div id="connection-dot" class="w-2 h-2 rounded-full bg-red-500 shadow-sm" title="Disconnected"></div>
-            
-            <button onclick="toggleSettings()" class="ml-2 w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center text-slate-400 transition-colors group" title="Pengaturan">
-                <span class="text-xl group-hover:rotate-90 transition-transform">⚙️</span>
-            </button>
-            <button onclick="toggleSidebar()" class="ml-2 w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center text-slate-400 transition-colors group">
-                <span class="text-xl group-hover:scale-110 transition-transform">🕒</span>
-            </button>
+            <div id='model-badge'>Loading...</div>
+            <div id='user-avatar'>K</div>
         </div>
     </header>
 
-    <!-- Toolbar -->
-    <div class="h-12 border-b border-white/5 bg-brand-base/80 backdrop-blur-md flex items-center px-6 justify-end shrink-0 z-20 gap-2">
-        <button onclick="saveToFile()" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 text-[10px] font-bold text-slate-400 transition-all flex items-center gap-2">
-            <span>💿</span> Simpan
-        </button>
-        <div class="w-px h-4 bg-white/10 mx-1"></div>
-        <button onclick="resetSession()" class="w-8 h-8 rounded-lg hover:bg-red-500/10 text-slate-500 hover:text-red-400 flex items-center justify-center transition-all" title="Reset Session">
-            <span>🔄</span>
-        </button>
-        <button onclick="clearChat()" class="w-8 h-8 rounded-lg hover:bg-slate-500/10 text-slate-500 hover:text-slate-300 flex items-center justify-center transition-all" title="Clear Chat">
-            <span>🗑️</span>
-        </button>
-    </div>
-
-    <!-- Main Content Area -->
-    <main id="main-content" class="flex-1 flex overflow-hidden relative">
-        <!-- Chat View -->
-        <div id="chat-view" class="flex-1 flex flex-col h-full overflow-hidden bg-[radial-gradient(circle_at_50%_-20%,#0f172a,transparent_70%)]">
-            <div id="chat-container" class="flex-1 overflow-y-auto px-6 py-8 flex flex-col">
-                <!-- Welcome State -->
-                <div id="welcome-state" class="flex-1 flex flex-col items-center justify-center text-center animate-fade">
-                    <h2 class="text-4xl font-extrabold text-white mb-4 tracking-tight">Kyuraa</h2>
-                    <p class="text-slate-400 text-sm md:text-base max-w-sm mx-auto leading-relaxed opacity-80">
-Asisten AI pribadi dengan berbagai skill akademik. Aktifkan skill yang kamu butuhkan dan biarkan Kyuraa bekerja.
-                    </p>
-                </div>
+    <!-- MAIN LAYOUT -->
+    <div id='app-layout'>
+        <!-- SIDEBAR KIRI -->
+        <aside id='sidebar'>
+            <button id='new-session-btn'>+ Sesi Baru</button>
+            <div id='sessions-list'>
+                <!-- Diisi JavaScript -->
             </div>
-
-            <!-- Loading Indicator -->
-            <div id="loading-indicator" class="hidden px-6 py-4 animate-fade shrink-0">
-                <div class="max-w-3xl mx-auto flex gap-4 items-center bg-slate-900/50 border border-white/5 p-4 rounded-3xl backdrop-blur-sm">
-                    <div class="relative w-10 h-10 rounded-2xl bg-cyan-500/10 flex items-center justify-center shrink-0">
-                        <div class="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                    <div class="flex-1">
-                        <div class="flex flex-wrap gap-2 mb-1">
-                            <span id="loading-step" class="text-[10px] font-bold text-cyan-400 uppercase tracking-widest px-2 py-0.5 bg-cyan-500/10 rounded">Thinking</span>
-                        </div>
-                        <p id="loading-status" class="text-xs text-slate-400">Agent sedang memproses teks anda...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Input Bar -->
-            <div id="input-bar" class="p-6 shrink-0 z-20">
-                <div class="max-w-3xl mx-auto relative group">
-                    <div class="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-[28px] opacity-10 group-focus-within:opacity-30 blur transition duration-500"></div>
-                    <div class="relative bg-brand-surface border border-white/10 rounded-[26px] p-2 flex gap-2 shadow-2xl overflow-hidden focus-within:border-cyan-500/50 transition-all">
-                        <textarea id="message-input" rows="1" placeholder="Ketik pesan atau pertanyaanmu..." 
-                            class="flex-1 bg-transparent px-4 py-3 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none max-h-48 scrollbar-hide"></textarea>
-                        
-                        <div class="flex flex-col justify-end pb-1 pr-1">
-                            <button id="send-btn" onclick="sendMessage()" class="w-10 h-10 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-white flex items-center justify-center shadow-lg shadow-cyan-500/20 transition-all disabled:opacity-50">
-                                <span class="text-lg">➔</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="mt-3 flex justify-between items-center px-4">
-                        <p class="text-[10px] text-slate-600 font-medium">
-                            Enter untuk kirim · <span class="text-slate-500">Shift+Enter untuk baris baru</span>
-                        </p>
-                        <div id="char-count" class="text-[10px] text-slate-600 font-mono hidden">0 characters</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings View -->
-        <div id="settings-view" class="hidden flex-1 overflow-y-auto bg-brand-base p-8 animate-fade">
-            <div class="max-w-3xl mx-auto">
-                <button onclick="toggleSettings(false)" class="mb-8 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
-                    <span class="text-lg group-hover:-translate-x-1 transition-transform">←</span>
-                    <span class="text-xs font-bold uppercase tracking-widest">Kembali ke Chat</span>
-                </button>
-
-                <div class="settings-card rounded-[32px] p-8 space-y-8">
-                    <div class="space-y-1">
-                        <h2 class="text-xl font-bold text-white">Pengaturan Utama</h2>
-                        <p class="text-xs text-slate-500">Konfigurasi runtime AI model dan kunci API</p>
-                    </div>
-
-                    <div id="settings-error" class="hidden p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 animate-fade"></div>
-                    <div id="settings-success" class="hidden p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 animate-fade"></div>
-
-                    <div class="space-y-6">
-                        <!-- Model Selection -->
-                        <div class="space-y-2">
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">AI Model</label>
-                            <input type="text" id="setting-model" placeholder="Contoh: qwen/qwen3.6-plus:free"
-                                class="w-full form-input rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none">
-                        </div>
-
-                        <!-- API Key -->
-                        <div class="space-y-2">
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">OpenRouter API Key</label>
-                            <div class="relative">
-                                <input type="password" id="setting-api-key" placeholder="Masukkan API Key..."
-                                    class="w-full form-input rounded-2xl px-5 py-3 pr-12 text-sm text-slate-200 outline-none font-mono">
-                                <button onclick="togglePassword('setting-api-key')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-                                    👁️
-                                </button>
-                            </div>
-                            <p class="text-[9px] text-slate-600 px-1 italic">Key tidak akan disimpan di localStorage untuk alasan keamanan.</p>
-                        </div>
-                    </div>
-
-                    <!-- Usage Statistics Card -->
-                    <div class="mt-6 p-5 rounded-2xl bg-white/5 border border-white/5 space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                                <span>📊</span> Usage Statistics
-                            </h3>
-                            <button onclick="resetUsageStats()" class="text-[9px] font-bold text-red-500/60 hover:text-red-500 uppercase transition-colors">
-                                Reset
-                            </button>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-3 text-[10px]">
-                            <div class="flex justify-between">
-                                <span class="text-slate-500">Total Requests</span>
-                                <span id="usage-requests" class="text-slate-300 font-mono">0</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-500">Total Time</span>
-                                <span id="usage-time" class="text-slate-300 font-mono">0s</span>
-                            </div>
-                        </div>
-                        
-                        <div class="border-t border-white/5 pt-3 space-y-2">
-                            <div class="flex justify-between text-[10px]">
-                                <span class="text-emerald-500/80">⬆ Input Tokens</span>
-                                <span id="usage-input" class="text-slate-300 font-mono">0</span>
-                            </div>
-                            <div class="flex justify-between text-[10px]">
-                                <span class="text-amber-500/80">⬇ Output Tokens</span>
-                                <span id="usage-output" class="text-slate-300 font-mono">0</span>
-                            </div>
-                            <div class="flex justify-between text-[10px] font-bold pt-2 border-t border-white/5">
-                                <span class="text-cyan-400">∑ Total Tokens</span>
-                                <span id="usage-total" class="text-cyan-300 font-mono">0</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Skill Management Section -->
-                    <div class="mt-6 p-5 rounded-2xl bg-white/5 border border-white/5 space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                                <span>🎯</span> Manajemen Skill
-                            </h3>
-                            <div class="flex items-center gap-2">
-                                <span id="skill-count" class="text-[9px] font-mono text-slate-500">0 skill</span>
-                                <button onclick="fetchSkillsList()" class="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors" title="Refresh daftar skill">
-                                    <span class="text-xs">🔄</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Skills Table -->
-                        <div id="skills-table-container" class="hidden">
-                            <div class="overflow-hidden rounded-xl border border-white/5">
-                                <table class="w-full text-[10px]">
-                                    <thead class="bg-white/5">
-                                        <tr class="text-slate-500 uppercase tracking-wider">
-                                            <th class="px-3 py-2 text-left font-bold">Nama</th>
-                                            <th class="px-3 py-2 text-left font-bold hidden md:table-cell">Deskripsi</th>
-                                            <th class="px-3 py-2 text-center font-bold">Ver</th>
-                                            <th class="px-3 py-2 text-center font-bold">Ref</th>
-                                            <th class="px-3 py-2 text-center font-bold">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="skills-table-body" class="divide-y divide-white/5">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Empty State -->
-                        <div id="skills-empty" class="py-6 text-center">
-                            <p class="text-[10px] text-slate-500">Belum ada skill terpasang</p>
-                        </div>
-
-                        <!-- How to Add New Skill -->
-                        <div class="mt-4 p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-2">
-                            <h4 class="text-[10px] font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
-                                <span>📦</span> Cara Menambah Skill Baru
-                            </h4>
-                            <div class="space-y-1.5 text-[9px] text-slate-400 pl-5">
-                                <p class="flex items-center gap-2">
-                                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[8px] font-bold shrink-0">1</span>
-                                    Download template skill di bawah ini
-                                </p>
-                                <p class="flex items-center gap-2">
-                                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[8px] font-bold shrink-0">2</span>
-                                    Buat folder baru di <span class="font-mono text-cyan-400/70">workspace/skills/</span>
-                                </p>
-                                <p class="flex items-center gap-2">
-                                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[8px] font-bold shrink-0">3</span>
-                                    Isi <span class="font-mono text-cyan-400/70">SKILL.md</span> dan refresh halaman
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Download Template Button -->
-                        <button onclick="downloadSkillTemplate()" class="w-full py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 font-bold text-xs transition-all flex items-center justify-center gap-2 group">
-                            <span class="group-hover:scale-110 transition-transform">📥</span>
-                            Download Template Skill
-                        </button>
-                    </div>
-
-                    <div class="pt-4">
-                        <button id="save-settings-btn" onclick="validateAndSaveSettings()" 
-                            class="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-sm shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2">
-                            <span>Simpan & Validasi Koneksi</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar Riwayat -->
-        <aside id="history-sidebar" class="w-80 h-full border-l border-white/5 bg-brand-base flex flex-col z-10 closed absolute right-0 top-0 lg:relative lg:translate-x-0">
-            <div class="h-14 border-b border-white/5 flex items-center px-6 justify-between shrink-0">
-                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-300">🕒 Riwayat</h3>
-                <button onclick="clearAllHistory()" class="text-[9px] font-bold text-red-500/60 hover:text-red-500 uppercase transition-colors">Hapus Semua</button>
-            </div>
-            
-            <div id="history-list" class="flex-1 overflow-y-auto p-4 space-y-3">
-                <div class="py-12 text-center">
-                    <p class="text-xs text-slate-500">Belum ada riwayat chat</p>
-                </div>
+            <div id='sidebar-footer'>
+                <button id='sidebar-settings-btn'>⚙ Pengaturan</button>
             </div>
         </aside>
-    </main>
 
-    <!-- Custom Confirm Modal -->
-    <div id="confirm-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-6 hidden">
-        <div class="absolute inset-0 modal-backdrop" onclick="closeConfirmModal()"></div>
-        <div class="relative w-full max-w-sm bg-brand-surface border border-white/10 rounded-[24px] shadow-2xl overflow-hidden animate-modal">
-            <div class="p-6 space-y-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
-                        <span class="text-lg">⚠️</span>
-                    </div>
-                    <div>
-                        <h3 id="confirm-title" class="text-lg font-bold text-white">Konfirmasi</h3>
-                    </div>
+        <!-- CHAT AREA -->
+        <main id='chat-area'>
+            <!-- Welcome screen (tampil saat tidak ada chat) -->
+            <div id='welcome-screen'>
+                <h1>Kyuraa</h1>
+                <p>Asisten AI pribadi dengan berbagai skill akademik.</p>
+                <div id='example-prompts'>
+                    <button class='example-prompt' data-prompt='Aktifkan skill penerjemah Arab'>Aktifkan skill penerjemah Arab</button>
+                    <button class='example-prompt' data-prompt='Bantu analisis data R&D 4D'>Bantu analisis data R&D 4D</button>
+                    <button class='example-prompt' data-prompt='Ngobrol santai'>Ngobrol santai</button>
                 </div>
-                <p id="confirm-message" class="text-sm text-slate-400 pl-[46px]">Apakah Anda yakin?</p>
             </div>
-            <div class="h-14 border-t border-white/5 px-4 flex items-center justify-end gap-3 bg-white/2">
-                <button id="confirm-cancel-btn" onclick="closeConfirmModal()" class="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-bold transition-all">Batal</button>
-                <button id="confirm-ok-btn" class="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold shadow-lg shadow-cyan-500/20 transition-all">Ya, Lanjutkan</button>
+
+            <!-- Messages container -->
+            <div id='messages-container' class='hidden'>
+                <!-- Diisi JavaScript -->
+            </div>
+
+            <!-- Input area -->
+            <div id='input-area'>
+                <div id='skill-badge-active' class='hidden'>
+                    <span class='skill-name'>terjemah</span>
+                    <button class='skill-remove'>✕</button>
+                </div>
+                <div id='input-wrapper'>
+                    <textarea id='message-input'
+                        placeholder='Ketik pesan atau pertanyaanmu...'
+                        rows='1'></textarea>
+                    <button id='send-btn'>↑</button>
+                </div>
+                <div id='input-footer'>
+                    Enter untuk kirim · Shift+Enter baris baru
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SETTINGS PANEL (hidden by default) -->
+    <div id='settings-overlay' class='hidden'>
+        <div id='settings-panel'>
+            <header>
+                <h2>Pengaturan</h2>
+                <button id='settings-close'>✕</button>
+            </header>
+            <div id='settings-content'>
+                <!-- Konten setting dipindah ke sini -->
             </div>
         </div>
     </div>
 
-    <!-- Modal Detail Riwayat -->
-    <div id="history-modal" class="fixed inset-0 z-50 flex items-center justify-center p-6 hidden">
-        <div class="absolute inset-0 modal-backdrop" onclick="closeModal()"></div>
-        <div class="relative w-full max-w-4xl max-h-[85vh] bg-brand-surface border border-white/10 rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-modal">
-            <div class="h-16 border-b border-white/5 px-8 flex items-center justify-between shrink-0 bg-white/2">
-                <div class="flex items-center gap-4">
-                    <span id="modal-date" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date</span>
-                    <div class="h-4 w-px bg-white/10"></div>
-                    <span id="modal-mode" class="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Mode</span>
-                    <span id="modal-dir" class="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Direction</span>
-                </div>
-                <button onclick="closeModal()" class="w-8 h-8 rounded-full hover:bg-white/5 flex items-center justify-center text-slate-400 transition-colors">✕</button>
-            </div>
-            
-            <div class="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-thin">
-                <div class="space-y-3">
-                    <label class="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-2">Input Asli</label>
-                    <div id="modal-input" class="bg-white/5 rounded-2xl p-6 text-sm text-slate-300 leading-relaxed italic border border-white/5"></div>
-                </div>
-                
-                <div class="space-y-3">
-                    <label class="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-2">Hasil Terjemahan</label>
-                    <div id="modal-output" class="bg-brand-base border border-white/5 rounded-3xl p-8 shadow-inner overflow-hidden">
-                        <!-- Content will be rendered here -->
-                    </div>
-                </div>
-            </div>
-            
-            <div class="h-20 border-t border-white/5 px-8 flex items-center justify-end gap-3 bg-white/2">
-                <button onclick="copyModalOutput()" class="px-6 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2 group">
-                    <span class="group-hover:scale-110 transition-transform">📋</span> Salin Hasil
-                </button>
-                <button onclick="closeModal()" class="px-6 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs font-bold transition-all">Tutup</button>
+    <!-- Confirm Modal -->
+    <div id='confirm-modal' class='hidden'>
+        <div class='confirm-backdrop'></div>
+        <div class='confirm-dialog'>
+            <h3>Konfirmasi</h3>
+            <p id='confirm-message'>Apakah Anda yakin?</p>
+            <div class='confirm-actions'>
+                <button id='confirm-cancel'>Batal</button>
+                <button id='confirm-ok'>Ya, Lanjutkan</button>
             </div>
         </div>
     </div>
 
-    <!-- Footer Stats -->
-    <footer id="stats-bar" class="h-8 bg-brand-base border-t border-white/5 px-6 flex items-center justify-between shrink-0 z-30">
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
-                <span class="text-cyan-500 opacity-50">📡</span> <span id="stat-requests">Req: 0</span>
-            </div>
-            <div class="h-2 w-px bg-white/5"></div>
-            <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
-                <span class="text-emerald-500 opacity-50">⬆</span> <span id="stat-input">In: 0</span>
-            </div>
-            <div class="h-2 w-px bg-white/5"></div>
-            <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
-                <span class="text-amber-500 opacity-50">⬇</span> <span id="stat-output">Out: 0</span>
-            </div>
-            <div class="h-2 w-px bg-white/5"></div>
-            <div class="flex items-center gap-1.5 text-[9px] font-bold text-cyan-400">
-                <span class="opacity-50">∑</span> <span id="stat-total">Total: 0</span>
-            </div>
-            <div class="h-2 w-px bg-white/5"></div>
-            <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
-                <span class="text-slate-400 opacity-50">⏱</span> <span id="stat-time">0s</span>
-            </div>
-        </div>
-        
-        <div class="flex items-center gap-2">
-            <p id="stat-model-full" class="text-[9px] font-mono font-bold text-slate-600 truncate max-w-[200px] uppercase">-</p>
-        </div>
-    </footer>
+    <!-- Toast Container -->
+    <div id='toast-container'></div>
 
-    <!-- Disconnected Overlay -->
-    <div id="disconnected-overlay" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center">
-            <div class="text-center space-y-6 animate-fade">
-                <div class="w-20 h-20 mx-auto rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center">
-                    <span class="text-4xl">⚡</span>
-                </div>
-                <div class="space-y-2">
-                    <h2 class="text-2xl font-bold text-white">Koneksi Terputus</h2>
-                    <p class="text-slate-400 text-sm max-w-xs mx-auto">Server tidak merespons. Memeriksa koneksi...</p>
-                </div>
-                <div class="flex flex-col items-center gap-3">
-                    <div id="reconnect-countdown" class="text-cyan-400 font-mono text-lg">Mencoba menghubungkan...</div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></div>
-                        <span id="reconnect-attempts" class="text-slate-500 text-xs font-medium">Percobaan 1</span>
-                    </div>
-                    <div class="flex gap-3 mt-4">
-                        <button onclick="manualReconnect()" class="px-6 py-2.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-white text-sm font-bold shadow-lg shadow-cyan-500/30 transition-all flex items-center gap-2">
-                            <span>🔄</span> Sambung Ulang
-                        </button>
-                        <button onclick="reloadPage()" class="px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 text-sm font-bold transition-all">
-                            🔁 Reload Halaman
-                        </button>
-                    </div>
-                </div>
+    <!-- Disconnect Overlay -->
+    <div id='disconnect-overlay' class='hidden'>
+        <div class='disconnect-content'>
+            <div class='disconnect-icon'>⚡</div>
+            <h2>Koneksi Terputus</h2>
+            <p>Server tidak merespons. Memeriksa koneksi...</p>
+            <div id='reconnect-status'>Mencoba menghubungkan...</div>
+            <div class='disconnect-actions'>
+                <button id='reconnect-btn'>🔄 Sambung Ulang</button>
+                <button id='reload-btn'>🔁 Reload Halaman</button>
             </div>
         </div>
     </div>
-
-    <!-- Toast Layer -->
-    <div id="toast-container" class="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col gap-2 items-center w-full max-w-sm"></div>
 
     <script>
-        // --- Core Application Logic ---
-        const chatContainer = document.getElementById('chat-container');
+        // ============================================
+        // STATE
+        // ============================================
+        let ws = null;
+        let currentSessionId = null;
+        let sessions = [];
+        let currentAgentMessage = null;
+        let currentAgentContent = '';
+        let lastUserMessage = '';
+        let isConnected = false;
+        let activeSkill = null;
+        let sessionStartTime = null;
+        let sessionStats = { requests: 0, inputTokens: 0, outputTokens: 0 };
+        let typingStartTime = 0;
+        let pendingReplace = null;
+
+        // ============================================
+        // DOM ELEMENTS
+        // ============================================
+        const sessionsList = document.getElementById('sessions-list');
+        const messagesContainer = document.getElementById('messages-container');
+        const welcomeScreen = document.getElementById('welcome-screen');
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
-        const sessionDisplay = document.getElementById('session-display');
-        const connectionDot = document.getElementById('connection-dot');
-        const loadingIndicator = document.getElementById('loading-indicator');
-        const loadingStepEl = document.getElementById('loading-step');
-        const loadingStatusEl = document.getElementById('loading-status');
-        const welcomeState = document.getElementById('welcome-state');
-        const charCountEl = document.getElementById('char-count');
-        
-        // Stats
-        const statTokens = document.getElementById('stat-tokens');
-        const statTime = document.getElementById('stat-time');
-        const statRequests = document.getElementById('stat-requests');
-        const statInput = document.getElementById('stat-input');
-        const statOutput = document.getElementById('stat-output');
-        const statTotal = document.getElementById('stat-total');
-        const statModelFull = document.getElementById('stat-model-full');
-        const modelBadgeEl = document.getElementById('model-badge');
-        const modelNameEl = document.getElementById('model-name');
+        const settingsOverlay = document.getElementById('settings-overlay');
+        const settingsContent = document.getElementById('settings-content');
+        const modelBadge = document.getElementById('model-badge');
+        const toastContainer = document.getElementById('toast-container');
+        const confirmModal = document.getElementById('confirm-modal');
 
-        // Usage stats elements (Settings page)
-        const usageRequestsEl = document.getElementById('usage-requests');
-        const usageTimeEl = document.getElementById('usage-time');
-        const usageInputEl = document.getElementById('usage-input');
-        const usageOutputEl = document.getElementById('usage-output');
-        const usageTotalEl = document.getElementById('usage-total');
-
-        const USAGE_KEY = 'agent_arab_usage';
-        let totalUsage = { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, totalTimeMs: 0 };
-
-        let ws = null;
-        let sessionId = 's-' + Date.now();
-        let isConnected = false;
-        let isReconnecting = false;
-        let reconnectAttempts = 0;
-        let reconnectTimer = null;
-        let selectedMode = 'linguistic';
-        let selectedStyle = 'akademik';
-        let currentPrompt = '';
-        let currentContent = '';
-        let currentResponseDiv = null;
-        let startTime = null;
-        let sidebarOpen = false;
-        
-        // Session stats tracking
-        let sessionRequests = 0;
-        let sessionInputTokens = 0;
-        let sessionOutputTokens = 0;
-        let sessionTotalTokens = 0;
-
-        const HISTORY_KEY = 'agent_arab_history';
-
-        // --- Fetch Initial State ---
-        async function fetchModelInfo() {
-            try {
-                const r = await fetch('/info');
-                const data = await r.json();
-                modelNameEl.textContent = data.model;
-                statModelFull.textContent = data.model;
-                modelBadgeEl.classList.remove('hidden');
-            } catch (e) {
-                console.error('Failed to fetch model info');
-            }
+        // ============================================
+        // UTILITIES
+        // ============================================
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function formatRelativeDate(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) return 'Hari ini';
+            if (diffDays === 1) return 'Kemarin';
+            if (diffDays === 2) return '2 hari lalu';
+            if (diffDays < 7) return `${diffDays} hari lalu`;
+            return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        }
+
+        function generateId() {
+            return 's-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+        }
+
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // ============================================
+        // SKILL MANAGEMENT
+        // ============================================
         async function fetchSkillStatus() {
             try {
-                const r = await fetch('/skills');
-                const data = await r.json();
+                const res = await fetch('/skills');
+                const data = await res.json();
                 if (data.active_skill) {
                     showSkillBadge(data.active_skill);
                 } else {
@@ -608,731 +934,1245 @@ Asisten AI pribadi dengan berbagai skill akademik. Aktifkan skill yang kamu butu
         }
 
         function showSkillBadge(skillName) {
-            const badge = document.getElementById('skill-badge');
-            const nameEl = document.getElementById('skill-name');
-            if (badge && nameEl) {
-                nameEl.textContent = skillName;
+            activeSkill = skillName;
+            const badge = document.getElementById('skill-badge-active');
+            if (badge) {
+                badge.querySelector('.skill-name').textContent = skillName;
                 badge.classList.remove('hidden');
-                badge.classList.add('flex');
             }
+            updateHeaderSkillIndicator(skillName);
         }
 
         function hideSkillBadge() {
-            const badge = document.getElementById('skill-badge');
+            activeSkill = null;
+            const badge = document.getElementById('skill-badge-active');
             if (badge) {
                 badge.classList.add('hidden');
-                badge.classList.remove('flex');
+            }
+            updateHeaderSkillIndicator(null);
+        }
+
+        function updateHeaderSkillIndicator(skillName) {
+            let indicator = document.getElementById('skill-indicator');
+            if (!skillName) {
+                if (indicator) {
+                    indicator.remove();
+                }
+                return;
+            }
+            
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'skill-indicator';
+                indicator.className = 'skill-indicator';
+                
+                const modelBadge = document.getElementById('model-badge');
+                if (modelBadge && modelBadge.parentNode) {
+                    modelBadge.parentNode.insertBefore(indicator, modelBadge);
+                }
+            }
+            
+            indicator.innerHTML = `<span class='skill-badge'>🎯 ${skillName}</span>`;
+        }
+
+        async function updateSkillBadgeFromServer() {
+            try {
+                const res = await fetch('/skills');
+                const data = await res.json();
+                if (data.active_skill) {
+                    showSkillBadge(data.active_skill);
+                } else {
+                    hideSkillBadge();
+                }
+            } catch (e) {
+                console.error('Failed to fetch skill status');
             }
         }
 
         async function deactivateSkill() {
             try {
-                const r = await fetch('/skills/deactivate', { method: 'POST' });
-                if (r.ok) {
-                    hideSkillBadge();
-                    showToast('Skill dinonaktifkan', 'info');
-                }
+                await fetch('/skills/deactivate', { method: 'POST' });
+                hideSkillBadge();
+                showToast('Skill dinonaktifkan', 'info');
             } catch (e) {
                 console.error('Failed to deactivate skill');
             }
         }
 
-        function updateSkillBadgeFromResponse(content) {
-            const activatedMatch = content.match(/✅\s*Skill\s*\*?\*?([^\s*]+)\*?\*?\s*aktif/);
-            if (activatedMatch) {
-                showSkillBadge(activatedMatch[1]);
+        // Add event listener for skill remove button
+        document.getElementById('skill-badge-active').querySelector('.skill-remove').addEventListener('click', deactivateSkill);
+
+        // ============================================
+        // STATS BAR
+        // ============================================
+        function updateStatsBar() {
+            const footer = document.getElementById('input-footer');
+            const totalTokens = sessionStats.inputTokens + sessionStats.outputTokens;
+            footer.innerHTML = `
+                <span class="stats-bar">
+                    <span>Req: ${sessionStats.requests}</span>
+                    <span class="stat-divider">·</span>
+                    <span>In: ${sessionStats.inputTokens}</span>
+                    <span class="stat-divider">·</span>
+                    <span>Out: ${sessionStats.outputTokens}</span>
+                    <span class="stat-divider">·</span>
+                    <span class="stat-total">∑ ${totalTokens}</span>
+                    ${sessionStartTime ? `<span class="stat-divider">·</span><span>⏱ ${getElapsedTime()}</span>` : ''}
+                </span>
+            `;
+        }
+
+        function getElapsedTime() {
+            if (!sessionStartTime) return '0s';
+            const elapsed = Date.now() - sessionStartTime;
+            if (elapsed < 1000) return elapsed + 'ms';
+            return (elapsed / 1000).toFixed(1) + 's';
+        }
+
+        // ============================================
+        // WEBSOCKET
+        // ============================================
+        let isIntentionalClose = false;
+
+        function updateConnectionStatus(status) {
+            const dot = document.querySelector('.status-dot');
+            const text = document.querySelector('.status-text');
+            if (!dot || !text) return;
+            
+            dot.className = 'status-dot ' + status;
+            if (status === 'connected') {
+                text.textContent = 'Online';
+            } else if (status === 'disconnected') {
+                text.textContent = 'Offline';
+            } else if (status === 'connecting') {
+                text.textContent = 'Menghubungi...';
+            }
+        }
+
+        function connectWebSocket(sessionId) {
+            if (!sessionId) {
+                console.error('connectWebSocket called with invalid sessionId:', sessionId);
                 return;
             }
-            if (content.includes('✅ Skill dinonaktifkan') || content.includes('Skill dinonaktifkan')) {
-                hideSkillBadge();
+            
+            isIntentionalClose = false;
+            updateConnectionStatus('connecting');
+            
+            if (ws) {
+                ws.close();
+                ws = null;
             }
-        }
-
-        // --- WebSocket ---
-        function connect() {
-            sessionId = 's-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
-            sessionDisplay.textContent = `HEX: ${sessionId.substring(21).toUpperCase() || 'CORE'}`;
             
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${location.host}/ws/${sessionId}`);
-
+            const wsUrl = `${protocol}//${location.host}/ws/${sessionId}`;
+            console.log('Connecting to:', wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            
             ws.onopen = () => {
+                console.log('WS Connected successfully');
                 isConnected = true;
-                isReconnecting = false;
-                reconnectAttempts = 0;
-                connectionDot.classList.replace('bg-red-500', 'bg-emerald-500');
-                connectionDot.title = 'Connected';
-                hideDisconnectedOverlay();
-                if (!isReconnecting) showToast('Agent connected to terminal', 'success');
-                fetchModelInfo();
+                updateConnectionStatus('connected');
+                hideDisconnectOverlay();
                 fetchSkillStatus();
-                renderHistory();
             };
-
+            
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                if (data.type === 'token') appendToken(data.content);
-                else if (data.type === 'done') finishResponse(data);
-                else if (data.type === 'error') { showToast(data.message, 'error'); finishResponse(data); }
-                else if (data.type === 'file_saved') {
-                    const filename = data.path.split(/[\\/]/).pop();
-                    showToast(`Suksess: ${filename} disimpan di workspace`, 'success');
-                }
+                handleWsMessage(data);
             };
-
-            ws.onerror = () => {
+            
+            ws.onerror = (event) => {
+                console.error('WS Error:', event);
                 isConnected = false;
-                connectionDot.classList.replace('bg-emerald-500', 'bg-red-500');
-                connectionDot.title = 'Connection Error';
+                updateConnectionStatus('disconnected');
             };
-
-            ws.onclose = () => {
+            
+            ws.onclose = (event) => {
+                console.log('WS Closed:', event.code, event.reason || '');
                 isConnected = false;
-                connectionDot.classList.replace('bg-emerald-500', 'bg-red-500');
-                connectionDot.title = 'Disconnected';
-                showDisconnectedOverlay();
-                scheduleReconnect();
+                updateConnectionStatus('disconnected');
+                
+                if (!isIntentionalClose) {
+                    showDisconnectOverlay();
+                }
+                isIntentionalClose = false;
             };
         }
 
-        function showDisconnectedOverlay() {
-            const overlay = document.getElementById('disconnected-overlay');
-            const countdown = document.getElementById('reconnect-countdown');
-            const attempts = document.getElementById('reconnect-attempts');
-            if (overlay) {
-                overlay.classList.remove('hidden');
-                attempts.textContent = `Percobaan ${reconnectAttempts}`;
+        function disconnectWebSocket() {
+            isIntentionalClose = true;
+            if (ws) {
+                ws.close();
+                ws = null;
             }
+            isConnected = false;
         }
 
-        function hideDisconnectedOverlay() {
-            const overlay = document.getElementById('disconnected-overlay');
-            if (overlay) overlay.classList.add('hidden');
-            if (reconnectTimer) {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = null;
-            }
+        function showDisconnectOverlay() {
+            document.getElementById('disconnect-overlay').classList.remove('hidden');
         }
 
-        function scheduleReconnect() {
-            if (isReconnecting) return;
-            isReconnecting = true;
-            reconnectAttempts++;
-            
-            const countdown = document.getElementById('reconnect-countdown');
-            const attempts = document.getElementById('reconnect-attempts');
-            if (attempts) attempts.textContent = `Percobaan ${reconnectAttempts}`;
-            
-            let seconds = 3;
-            if (countdown) countdown.textContent = `Menghubungi ulang dalam ${seconds} detik...`;
-            
-            const interval = setInterval(() => {
-                seconds--;
-                if (seconds > 0) {
-                    if (countdown) countdown.textContent = `Menghubungi ulang dalam ${seconds} detik...`;
-                } else {
-                    clearInterval(interval);
-                }
-            }, 1000);
-            
-            reconnectTimer = setTimeout(() => {
-                isReconnecting = false;
-                if (countdown) countdown.textContent = 'Mencoba menghubungkan...';
-                connect();
-            }, 3000);
+        function hideDisconnectOverlay() {
+            document.getElementById('disconnect-overlay').classList.add('hidden');
         }
 
         function manualReconnect() {
-            if (reconnectTimer) {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = null;
+            if (currentSessionId) connectWebSocket(currentSessionId);
+        }
+
+        document.getElementById('reconnect-btn').addEventListener('click', manualReconnect);
+        document.getElementById('reload-btn').addEventListener('click', () => window.location.reload());
+
+        function handleWsMessage(data) {
+            if (data.type === 'token') {
+                appendToken(data.content);
+            } else if (data.type === 'done') {
+                finishAgentMessage(data);
+            } else if (data.type === 'error') {
+                showToast(data.message, 'error');
+                finishAgentMessage(data);
+            } else if (data.type === 'file_saved') {
+                showToast('File disimpan', 'success');
             }
-            isReconnecting = false;
-            reconnectAttempts = 0;
-            const countdown = document.getElementById('reconnect-countdown');
-            if (countdown) countdown.textContent = 'Mencoba menghubungkan...';
-            connect();
         }
 
-        function reloadPage() {
-            window.location.reload();
+        // ============================================
+        // SESSIONS
+        // ============================================
+        async function loadSessions() {
+            try {
+                const res = await fetch('/sessions');
+                const data = await res.json();
+                // Filter out __system__ session
+                sessions = (data.sessions || []).filter(s => s.session_id !== '__system__');
+                renderSessions();
+            } catch (e) {
+                console.error('Failed to load sessions:', e);
+                showToast('Gagal memuat sesi', 'error');
+            }
         }
 
-        // --- Actions ---
-        function sendMessage() {
-            let userText = messageInput.value.trim();
-            if (!userText) return;
-            if (!isConnected) {
-                showToast('Tidak terhubung ke server. Mohon tunggu...', 'error');
-                showDisconnectedOverlay();
+        function renderSessions() {
+            if (sessions.length === 0) {
+                sessionsList.innerHTML = '<div class="no-sessions">Belum ada sesi</div>';
                 return;
             }
-
-            if (welcomeState) welcomeState.remove();
-
-            currentPrompt = userText;
-            const sendText = `[${selectedMode.toUpperCase()}] [${selectedStyle.toUpperCase()}] ${userText}`;
             
-            startTime = Date.now();
-            showLoading(true, 'ANALYZING', 'Penerjemah sedang memproses permintaan...');
+            // Group sessions by time
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterday = new Date(today.getTime() - 86400000);
+            const weekAgo = new Date(today.getTime() - 7 * 86400000);
+            
+            const groups = {
+                'Hari ini': [],
+                'Kemarin': [],
+                '7 Hari Terakhir': [],
+                'Lebih Lama': []
+            };
+            
+            sessions.forEach(s => {
+                const date = new Date(s.updated_at);
+                if (date >= today) {
+                    groups['Hari ini'].push(s);
+                } else if (date >= yesterday) {
+                    groups['Kemarin'].push(s);
+                } else if (date >= weekAgo) {
+                    groups['7 Hari Terakhir'].push(s);
+                } else {
+                    groups['Lebih Lama'].push(s);
+                }
+            });
+            
+            let html = '';
+            Object.entries(groups).forEach(([groupName, groupSessions]) => {
+                if (groupSessions.length === 0) return;
+                
+                html += `<div class="session-group-label">${groupName}</div>`;
+                html += groupSessions.map(s => `
+                    <div class="session-item ${s.session_id === currentSessionId ? 'active' : ''}" 
+                         data-id="${s.session_id}">
+                        <div class="session-name">${escapeHtml(s.name || 'Sesi baru')}</div>
+                        <div class="session-preview">
+                            ${s.updated_at ? formatRelativeDate(s.updated_at) : ''} · ${s.message_count || 0} pesan
+                        </div>
+                        <button class="session-delete" onclick="event.stopPropagation(); deleteSession('${s.session_id}')">🗑</button>
+                    </div>
+                `).join('');
+            });
+            
+            sessionsList.innerHTML = html;
+            
+            // Add click handlers
+            document.querySelectorAll('.session-item').forEach(item => {
+                item.addEventListener('click', () => selectSession(item.dataset.id));
+            });
+        }
 
-            appendUserMessage(userText);
-            messageInput.value = '';
-            messageInput.style.height = 'auto';
-            charCountEl.classList.add('hidden');
-            sendBtn.disabled = true;
+        async function selectSession(sessionId) {
+            // Disconnect any existing WS first
+            disconnectWebSocket();
+            
+            currentSessionId = sessionId;
+            renderSessions();
+            
+            // Load messages
+            try {
+                const res = await fetch(`/sessions/${sessionId}/messages`);
+                const data = await res.json();
+                const messages = data.messages || [];
+                renderMessages(messages);
+                
+                // Show welcome screen ONLY if messages container is empty
+                if (messages.length === 0) {
+                    welcomeScreen.classList.remove('hidden');
+                    messagesContainer.classList.add('hidden');
+                } else {
+                    welcomeScreen.classList.add('hidden');
+                    messagesContainer.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error('Failed to load messages:', e);
+            }
+            
+            // Connect WebSocket
+            connectWebSocket(sessionId);
+            
+            // Update active state in UI
+            document.querySelectorAll('.session-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.id === sessionId);
+            });
+        }
 
-            startResponse();
-            ws.send(JSON.stringify({ type: 'message', content: sendText }));
+        async function createNewSession() {
+            const newId = generateId();
+            currentSessionId = newId;
+            
+            // Disconnect any existing WS first (intentional)
+            isIntentionalClose = true;
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            // Clear messages and show welcome screen
+            messagesContainer.innerHTML = '';
+            welcomeScreen.classList.remove('hidden');
+            messagesContainer.classList.add('hidden');
+            
+            // Connect WebSocket to new session
+            connectWebSocket(newId);
+            
+            // Focus input
+            messageInput.focus();
+        }
+
+        async function deleteSession(sessionId) {
+            showConfirm('Hapus sesi ini? Semua pesan akan hilang.', async () => {
+                try {
+                    await fetch(`/sessions/${sessionId}`, { method: 'DELETE' });
+                    sessions = sessions.filter(s => s.session_id !== sessionId);
+                    renderSessions();
+                    
+                    if (currentSessionId === sessionId) {
+                        if (sessions.length > 0) {
+                            selectSession(sessions[0].session_id);
+                        } else {
+                            currentSessionId = null;
+                            messagesContainer.innerHTML = '';
+                            messagesContainer.classList.add('hidden');
+                            welcomeScreen.classList.remove('hidden');
+                        }
+                    }
+                    showToast('Sesi dihapus', 'info');
+                } catch (e) {
+                    showToast('Gagal menghapus sesi', 'error');
+                }
+            });
+        }
+
+        // ============================================
+        // MESSAGES
+        // ============================================
+        function renderMessages(messages) {
+            messagesContainer.innerHTML = '';
+            
+            messages.forEach(msg => {
+                if (msg.role === 'user') {
+                    appendUserMessage(msg.content);
+                } else if (msg.role === 'assistant') {
+                    appendAgentMessage(msg.content);
+                }
+            });
+            
+            scrollToBottom();
         }
 
         function appendUserMessage(text) {
             const div = document.createElement('div');
-            div.className = 'flex justify-end animate-fade';
-            div.innerHTML = `
-                <div class="bg-cyan-600 text-white px-5 py-3 rounded-[24px] rounded-br-[4px] max-w-[80%] shadow-xl shadow-cyan-600/10 transition-all text-sm leading-relaxed">
-                    ${escapeHtml(text)}
-                </div>
-            `;
-            chatContainer.appendChild(div);
+            div.className = 'message-user';
+            div.innerHTML = `<div class="bubble">${renderContent(text)}</div>`;
+            messagesContainer.appendChild(div);
             scrollToBottom();
         }
 
-        function startResponse() {
-            currentContent = '';
-            currentResponseDiv = document.createElement('div');
-            currentResponseDiv.className = 'group flex flex-col gap-3 animate-fade max-w-3xl';
-            currentResponseDiv.innerHTML = `
-                <div class="flex items-center gap-2 mb-1">
-                    <div class="w-6 h-6 rounded-full bg-slate-800 border border-white/5 flex items-center justify-center text-[10px]">🤖</div>
-                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">KYURAA</span>
-                </div>
-                <div class="relative bg-brand-surface border border-white/5 rounded-[28px] rounded-tl-[4px] p-5 shadow-2xl flex flex-col gap-4">
-                    <div class="flex items-center gap-1.5" id="typing-indicator">
-                        <span class="typing-dot w-1.5 h-1.5 bg-cyan-500 rounded-full"></span>
-                        <span class="typing-dot w-1.5 h-1.5 bg-cyan-500 rounded-full"></span>
-                        <span class="typing-dot w-1.5 h-1.5 bg-cyan-500 rounded-full"></span>
-                    </div>
-                    <div class="response-body text-slate-300 text-sm leading-relaxed space-y-4"></div>
+        function appendAgentMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message-agent';
+            div.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="content">
+                    <div class="bubble">${renderContent(text)}</div>
                 </div>
             `;
-            chatContainer.appendChild(currentResponseDiv);
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function startAgentMessage() {
+            currentAgentContent = '';
+            currentAgentMessage = document.createElement('div');
+            currentAgentMessage.className = 'message-agent';
+            currentAgentMessage.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="content">
+                    <div class="bubble">
+                        <div class="typing-indicator">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(currentAgentMessage);
             scrollToBottom();
         }
 
         function appendToken(token) {
-            if (!currentResponseDiv) return;
-            currentContent += token;
-            const indicator = currentResponseDiv.querySelector('#typing-indicator');
-            if (indicator && currentContent.length > 5) indicator.classList.add('hidden');
-            const body = currentResponseDiv.querySelector('.response-body');
-            body.innerHTML = renderContent(currentContent);
+            currentAgentContent += token;
+
+            if (!currentAgentMessage) {
+                // Fallback: bubble tidak dibuat di sendMessage() (e.g. dari pesan lama)
+                startAgentMessage();
+                typingStartTime = Date.now();
+                replaceDotsWithText();
+                return;
+            }
+
+            const bubble = currentAgentMessage.querySelector('.bubble');
+            const indicator = bubble?.querySelector('.typing-indicator');
+
+            if (indicator) {
+                // Dots masih tampil — pastikan minimum 800ms sebelum replace
+                const elapsed = Date.now() - typingStartTime;
+                if (elapsed >= 800) {
+                    replaceDotsWithText();
+                } else if (!pendingReplace) {
+                    pendingReplace = setTimeout(() => {
+                        pendingReplace = null;
+                        replaceDotsWithText();
+                    }, 800 - elapsed);
+                }
+            } else {
+                // Dots sudah hilang, langsung append teks
+                bubble.innerHTML = renderContent(currentAgentContent);
+                scrollToBottom();
+            }
+        }
+
+        function replaceDotsWithText(bubble) {
+            const indicator = bubble.querySelector('.typing-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+            bubble.innerHTML = renderContent(currentAgentContent);
             scrollToBottom();
         }
 
-        function finishResponse(data) {
-            sendBtn.disabled = false;
-            showLoading(false);
-            if (currentResponseDiv) {
-                saveToHistory(currentPrompt, currentContent);
-                const duration = getElapsedTime();
-                
-                // Get input tokens from API, or estimate if 0
-                let inputTokens = data.usage?.input_tokens || 0;
-                if (inputTokens === 0) {
-                    // Estimate: prompt + overhead for system/history (~500-1000 chars base)
-                    const baseOverhead = 800;
-                    inputTokens = Math.ceil((currentPrompt.length + baseOverhead) / 4);
-                }
-                
-                const outputTokens = data.usage?.output_tokens || Math.ceil(currentContent.length / 4);
-                const totalTokens = inputTokens + outputTokens;
-                
-                // Accumulate session stats
-                sessionRequests++;
-                sessionInputTokens += inputTokens;
-                sessionOutputTokens += outputTokens;
-                sessionTotalTokens += totalTokens;
-                
-                // Update UI
-                statRequests.textContent = `Req: ${sessionRequests}`;
-                statInput.textContent = `In: ${formatNumber(sessionInputTokens)}`;
-                statOutput.textContent = `Out: ${formatNumber(sessionOutputTokens)}`;
-                statTotal.textContent = `Total: ${formatNumber(sessionTotalTokens)}`;
-                statTime.textContent = duration;
-                
-                // Save to persistent usage stats
-                const timeMs = startTime ? (Date.now() - startTime) : 0;
-                addUsageStats(inputTokens, outputTokens, timeMs);
-                
-                // Update skill badge based on response content
-                updateSkillBadgeFromResponse(currentContent);
-                
-                currentResponseDiv = null;
-            }
-            renderHistory();
+        function parseMarkdown(text) {
+            return text
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+                .replace(/`(.+?)`/g, '<code>$1</code>');
         }
 
-        // --- History Logic ---
-        function saveToHistory(input, output) {
-            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            const dir = /[\u0600-\u06FF]/.test(input.substring(0, 50)) ? 'Arabic ➔ Indonesia' : 'Indonesia ➔ Arabic';
-            const item = {
-                id: 'h-' + Date.now(),
-                input: input,
-                output: output,
-                mode: selectedMode,
-                style: selectedStyle,
-                dir: dir,
-                date: new Date().toLocaleString('id-ID', { hour12: false, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-            };
-            history.unshift(item);
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50))); // Keep last 50
-        }
-
-        function renderHistory() {
-            const listEl = document.getElementById('history-list');
-            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            if (history.length === 0) {
-                listEl.innerHTML = '<div class="py-12 text-center text-xs text-slate-500">Belum ada riwayat</div>';
-                return;
-            }
-            listEl.innerHTML = history.map(item => `
-                <div class="group bg-white/5 border border-white/5 hover:border-cyan-500/30 p-3 rounded-xl transition-all cursor-pointer relative" onclick="openHistoryModal('${item.id}')">
-                    <div class="flex justify-between items-start mb-1">
-                        <span class="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">${item.date}</span>
-                        <button onclick="event.stopPropagation(); deleteHistoryItem('${item.id}')" class="opacity-0 group-hover:opacity-60 hover:text-red-500 transition-opacity text-[10px]">🗑️</button>
-                    </div>
-                    <div class="text-[9px] font-bold text-amber-500/80 mb-1 uppercase tracking-widest">${item.dir}</div>
-                    <p class="text-[11px] text-slate-300 line-clamp-1 italic">${escapeHtml(item.input)}</p>
-                </div>
-            `).join('');
-        }
-
-        function openHistoryModal(id) {
-            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            const item = history.find(h => h.id === id);
-            if (!item) return;
-
-            document.getElementById('modal-date').textContent = item.date;
-            document.getElementById('modal-mode').textContent = item.mode + ' • ' + item.style;
-            document.getElementById('modal-dir').textContent = item.dir;
-            document.getElementById('modal-input').textContent = item.input;
-            document.getElementById('modal-output').innerHTML = renderContent(item.output);
-            
-            const modal = document.getElementById('history-modal');
-            modal.classList.remove('hidden');
-            modal.dataset.currentId = id;
-        }
-
-        function closeModal() {
-            document.getElementById('history-modal').classList.add('hidden');
-        }
-
-        function copyModalOutput() {
-            const id = document.getElementById('history-modal').dataset.currentId;
-            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            const item = history.find(h => h.id === id);
-            if (item) {
-                copyText(item.output);
-                showToast('Hasil disalin ke clipboard', 'success');
-            }
-        }
-
-        // --- Settings Logic ---
-        function toggleSettings(show = true) {
-            const chatView = document.getElementById('chat-view');
-            const settingsView = document.getElementById('settings-view');
-            if (show) {
-                chatView.classList.add('hidden');
-                settingsView.classList.remove('hidden');
-                fetchSettings();
-                loadUsageStats();
-            } else {
-                chatView.classList.remove('hidden');
-                settingsView.classList.add('hidden');
-            }
-        }
-
-        // --- Usage Stats Functions ---
-        function loadUsageStats() {
-            try {
-                const saved = localStorage.getItem(USAGE_KEY);
-                if (saved) {
-                    totalUsage = JSON.parse(saved);
-                }
-            } catch (e) {
-                totalUsage = { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, totalTimeMs: 0 };
-            }
-            updateUsageUI();
-        }
-
-        function saveUsageStats() {
-            localStorage.setItem(USAGE_KEY, JSON.stringify(totalUsage));
-            updateUsageUI();
-        }
-
-        function updateUsageUI() {
-            if (usageRequestsEl) usageRequestsEl.textContent = formatNumber(totalUsage.requests);
-            if (usageInputEl) usageInputEl.textContent = formatNumber(totalUsage.inputTokens);
-            if (usageOutputEl) usageOutputEl.textContent = formatNumber(totalUsage.outputTokens);
-            if (usageTotalEl) usageTotalEl.textContent = formatNumber(totalUsage.totalTokens);
-            if (usageTimeEl) usageTimeEl.textContent = formatDuration(totalUsage.totalTimeMs);
-        }
-
-        function addUsageStats(inputTokens, outputTokens, timeMs) {
-            totalUsage.requests++;
-            totalUsage.inputTokens += inputTokens;
-            totalUsage.outputTokens += outputTokens;
-            totalUsage.totalTokens += (inputTokens + outputTokens);
-            totalUsage.totalTimeMs += timeMs;
-            saveUsageStats();
-        }
-
-        function resetUsageStats() {
-            showConfirmModal(
-                'Reset Usage Stats',
-                'Semua statistik usage akan dihapus. Lanjutkan?',
-                () => {
-                    totalUsage = { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, totalTimeMs: 0 };
-                    saveUsageStats();
-                    showToast('Usage stats direset', 'info');
-                },
-                'Reset Stats'
-            );
-        }
-
-        function formatDuration(ms) {
-            if (ms < 1000) return '0s';
-            const seconds = Math.floor(ms / 1000);
-            if (seconds < 60) return `${seconds}s`;
-            const minutes = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            return `${minutes}m ${secs}s`;
-        }
-
-        async function fetchSettings() {
-            try {
-                const r = await fetch('/settings');
-                const data = await r.json();
-                document.getElementById('setting-model').value = data.model;
-                document.getElementById('setting-api-key').value = data.api_key;
-            } catch (e) {
-                console.error('Failed to fetch settings');
-            }
-        }
-
-        async function validateAndSaveSettings() {
-            const model = document.getElementById('setting-model').value.trim();
-            const apiKey = document.getElementById('setting-api-key').value.trim();
-            const btn = document.getElementById('save-settings-btn');
-            const errorEl = document.getElementById('settings-error');
-            const successEl = document.getElementById('settings-success');
-
-            if (!model || !apiKey) {
-                errorEl.textContent = '❌ Model dan API Key wajib diisi.';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
-            errorEl.classList.add('hidden');
-            successEl.classList.add('hidden');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Sedang memvalidasi...';
-
-            try {
-                const r = await fetch('/settings/validate-and-save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model, api_key: apiKey })
-                });
-                
-                const data = await r.json();
-                if (r.ok) {
-                    successEl.textContent = data.message;
-                    successEl.classList.remove('hidden');
-                    fetchModelInfo(); // Update header badge
-                } else {
-                    errorEl.textContent = data.detail || '❌ Terjadi kesalahan saat menyimpan.';
-                    errorEl.classList.remove('hidden');
-                }
-            } catch (e) {
-                errorEl.textContent = '❌ Tidak dapat terhubung ke server.';
-                errorEl.classList.remove('hidden');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Simpan & Validasi Koneksi';
-            }
-        }
-
-        function togglePassword(id) {
-            const el = document.getElementById(id);
-            el.type = el.type === 'password' ? 'text' : 'password';
-        }
-
-        function deleteHistoryItem(id) {
-            let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            history = history.filter(h => h.id !== id);
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-            renderHistory();
-        }
-
-        function clearAllHistory() {
-            showConfirmModal(
-                'Hapus Semua Riwayat',
-                'Seluruh riwayat chat akan dihapus permanen. Lanjutkan?',
-                () => {
-                    localStorage.removeItem(HISTORY_KEY);
-                    renderHistory();
-                    showToast('Semua riwayat dihapus', 'info');
-                }
-            );
-        }
-
-        function showConfirmModal(title, message, onConfirm, okText = 'Ya, Lanjutkan') {
-            const modal = document.getElementById('confirm-modal');
-            document.getElementById('confirm-title').textContent = title;
-            document.getElementById('confirm-message').textContent = message;
-            const okBtn = document.getElementById('confirm-ok-btn');
-            okBtn.textContent = okText;
-            okBtn.onclick = () => { closeConfirmModal(); onConfirm(); };
-            modal.classList.remove('hidden');
-        }
-
-        function closeConfirmModal() {
-            document.getElementById('confirm-modal').classList.add('hidden');
-        }
-
-        function showSaveFileModal(callback) {
-            const modal = document.getElementById('confirm-modal');
-            document.getElementById('confirm-title').textContent = 'Simpan File';
-            document.getElementById('confirm-message').innerHTML = `
-                <input type="text" id="save-filename" placeholder="nama_file.txt" 
-                    class="w-full mt-2 form-input rounded-xl px-4 py-2 text-sm text-slate-200 outline-none font-mono">
-            `;
-            const okBtn = document.getElementById('confirm-ok-btn');
-            okBtn.textContent = 'Simpan';
-            okBtn.onclick = () => {
-                const filename = document.getElementById('save-filename').value.trim() || `output_${Date.now()}.txt`;
-                closeConfirmModal();
-                callback(filename);
-            };
-            modal.classList.remove('hidden');
-            setTimeout(() => document.getElementById('save-filename')?.focus(), 100);
-        }
-
-        // --- Modals & Popups ---
-        function copyText(text) {
-            navigator.clipboard.writeText(text);
-        }
-
-        // --- Render Helpers ---
         function renderContent(text) {
             if (!text) return '';
-            let rawLines = text.split('\n');
-            let mergedLines = [];
-            for (let i = 0; i < rawLines.length; i++) {
-                let line = rawLines[i].trim();
-                const isOrphan = (line === ')' || line === '(' || line === '/' || line === '→' || line === ':');
-                const lastLineEndsWithOpener = mergedLines.length > 0 && mergedLines[mergedLines.length - 1].trim().endsWith('(');
-                if ((isOrphan || lastLineEndsWithOpener) && mergedLines.length > 0) {
-                    const sep = mergedLines[mergedLines.length - 1].endsWith(' ') ? '' : ' ';
-                    mergedLines[mergedLines.length - 1] += sep + rawLines[i].trim();
-                } else { mergedLines.push(rawLines[i]); }
+
+            // First escape HTML to prevent XSS
+            let html = escapeHtml(text);
+
+            // Extract code blocks first (before markdown parsing)
+            const codeBlockPattern = /```[\s\S]*?```/g;
+            const codeBlocks = [];
+            html = html.replace(codeBlockPattern, (match, offset) => {
+                const idx = codeBlocks.length;
+                const codeContent = match.slice(4, -3);
+                codeBlocks.push(`<pre class="code-block">${codeContent}</pre>`);
+                return `%%CODEBLOCK_${idx}%%`;
+            });
+
+            // Parse markdown: **bold**, *italic*, `inline code`
+            html = parseMarkdown(html);
+
+            // Restore code blocks
+            html = html.replace(/%%CODEBLOCK_(\d+)%%/g, (_, i) => codeBlocks[parseInt(i)]);
+
+            // Preserve newlines by converting to <br>
+            html = html.replace(/\n/g, '<br>');
+
+            // Preserve multiple spaces
+            html = html.replace(/  /g, '&nbsp; ');
+
+            // Detect Arabic text blocks and apply RTL styling
+            const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+/g;
+            if (arabicPattern.test(html)) {
+                html = html.replace(/([\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+)/g, '<span class="arabic-text" dir="rtl" lang="ar">$1</span>');
             }
 
-            let html = '';
-            mergedLines.forEach(line => {
-                const trimmed = line.trim();
-                if (!trimmed) { html += '<div class="h-2"></div>'; return; }
-                const headerEmojis = ['📝', '🎯', '📋', '🔍', '🌐', '📄', '📖'];
-                const isHeader = headerEmojis.some(e => trimmed.startsWith(e));
-                if (isHeader) {
-                    html += `<div class="mt-6 mb-3 pt-4 border-t border-white/5 text-[10px] font-extrabold text-cyan-400 uppercase tracking-widest flex items-center gap-2">${trimmed}</div>`;
-                    return;
-                }
-                if (trimmed.startsWith('•')) {
-                    let content = trimmed.substring(1).trim();
-                    html += `<div class="flex gap-2 pl-2 mb-2 text-slate-300 text-sm leading-relaxed"><span class="text-cyan-500 font-bold">•</span><span>${processInlineArabic(content)}</span></div>`;
-                    return;
-                }
-                if (trimmed.startsWith('-')) {
-                    let content = trimmed.substring(1).trim();
-                    html += `<div class="flex gap-2 pl-2 mb-2 text-slate-300 text-sm leading-relaxed"><span class="text-slate-500 font-bold">—</span><span>${processInlineArabic(content)}</span></div>`;
-                    return;
-                }
-                const hasArabicArr = trimmed.match(/[\u0600-\u06FF]/g);
-                const hasLatin = /[a-zA-Z]/.test(trimmed);
-                const words = trimmed.split(/\s+/).filter(w => w.length > 0);
-                if (hasArabicArr && !hasLatin && words.filter(w => /[\u0600-\u06FF]/.test(w)).length >= 3) {
-                    html += `<div class="arabic-block p-5 rounded-2xl text-2xl mb-4 font-normal shadow-inner leading-relaxed" dir="rtl">${trimmed}</div>`;
-                } else {
-                    html += `<div class="mb-3 text-sm leading-relaxed text-slate-300">${processInlineArabic(trimmed)}</div>`;
-                }
-            });
             return html;
         }
 
-        function processInlineArabic(text) {
-            let processed = escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<b class="text-white font-bold">$1</b>');
-            return processed.replace(/([\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+)/g, '<span class="font-arabic text-amber-500 mx-0.5">$1</span>');
+        function finishAgentMessage(data) {
+            if (!currentAgentMessage) return;
+
+            if (pendingReplace) {
+                clearTimeout(pendingReplace);
+                pendingReplace = null;
+            }
+
+            const bubble = currentAgentMessage.querySelector('.bubble');
+
+            // Remove any residual typing indicator
+            const indicator = bubble.querySelector('.typing-indicator');
+            if (indicator) indicator.remove();
+
+            bubble.innerHTML = renderContent(currentAgentContent);
+            
+            // Update stats
+            if (data.usage) {
+                sessionStats.requests++;
+                sessionStats.inputTokens += data.usage.input_tokens || 0;
+                sessionStats.outputTokens += data.usage.output_tokens || 0;
+                updateStatsBar();
+            }
+            
+            // Fetch global stats and update settings panel
+            fetch('/stats').then(r => r.json()).then(stats => {
+                const reqEl = document.getElementById('usage-requests');
+                const inEl = document.getElementById('usage-input');
+                const outEl = document.getElementById('usage-output');
+                const totEl = document.getElementById('usage-total');
+                if (reqEl) reqEl.textContent = stats.total_requests || 0;
+                if (inEl) inEl.textContent = stats.input_tokens || 0;
+                if (outEl) outEl.textContent = stats.output_tokens || 0;
+                if (totEl) totEl.textContent = stats.total_tokens || 0;
+            });
+            
+            // Check for skill activation in response
+            const activatedMatch = currentAgentContent.match(/✅\s*Skill\s*\*?\*?([^\s*]+)\*?\*?\s*aktif/);
+            if (activatedMatch) {
+                showSkillBadge(activatedMatch[1]);
+            }
+            if (currentAgentContent.includes('✅ Skill dinonaktifkan') || currentAgentContent.includes('Skill dinonaktifkan')) {
+                hideSkillBadge();
+            }
+            
+            // Update session name with first 50 chars of user message
+            if (currentSessionId && lastUserMessage) {
+                const session = sessions.find(s => s.session_id === currentSessionId);
+                if (session && (!session.name || session.name === 'Sesi baru')) {
+                    const newName = lastUserMessage.substring(0, 50).replace(/\n/g, ' ').trim() + (lastUserMessage.length > 50 ? '...' : '');
+                    session.name = newName;
+                    fetch(`/sessions/${currentSessionId}/name`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: newName })
+                    }).then(() => {
+                        renderSessions();
+                    });
+                }
+                lastUserMessage = '';
+            }
+            
+            // Refresh sessions to get updated names
+            loadSessions();
+            
+            currentAgentMessage = null;
+            currentAgentContent = '';
+            
+            sendBtn.disabled = false;
+            scrollToBottom();
         }
 
-        // --- Utilities ---
-        function setMode(btn) {
-            document.querySelectorAll('.mode-btn').forEach(b => b.className = 'mode-btn px-3 py-1 rounded-md text-[10px] font-bold transition-all text-slate-500 hover:bg-white/5');
-            btn.className = 'mode-btn px-3 py-1 rounded-md text-[10px] font-bold transition-all bg-cyan-500 text-white segment-active shadow-sm';
-            selectedMode = btn.dataset.mode;
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            // If no current session, create one first
+            if (!currentSessionId) {
+                const newId = generateId();
+                currentSessionId = newId;
+
+                // Add to local sessions array
+                sessions.unshift({
+                    session_id: newId,
+                    name: 'Sesi baru',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    message_count: 0
+                });
+                renderSessions();
+
+                // Connect WebSocket
+                connectWebSocket(newId);
+
+                // Wait for WS to be connected
+                for (let i = 0; i < 10; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    if (isConnected) break;
+                }
+            }
+
+            if (!isConnected) {
+                showToast('Tidak terhubung ke server', 'error');
+                return;
+            }
+
+            // Start timing
+            sessionStartTime = Date.now();
+
+            // If still on welcome screen, switch to messages container
+            if (!welcomeScreen.classList.contains('hidden')) {
+                welcomeScreen.classList.add('hidden');
+                messagesContainer.classList.remove('hidden');
+            }
+
+            // Store user message for auto-naming
+            lastUserMessage = text;
+
+            // Add user message bubble immediately
+            appendUserMessage(text);
+
+            // Show typing indicator immediately — before server responds
+            currentAgentContent = '';
+            startAgentMessage();
+            typingStartTime = Date.now();
+
+            // Send via WebSocket
+            ws.send(JSON.stringify({ type: 'message', content: text }));
+
+            // Clear input
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            // Disable send button while waiting
+            sendBtn.disabled = true;
+
+            updateStatsBar();
+            scrollToBottom();
         }
 
-        function setStyle(btn) {
-            document.querySelectorAll('.style-btn').forEach(b => b.className = 'style-btn px-3 py-1 rounded-md text-[10px] font-bold transition-all text-slate-500 hover:bg-white/5');
-            if (btn.dataset.style === 'akademik') btn.className = 'style-btn px-3 py-1 rounded-md text-[10px] font-bold transition-all bg-amber-600/20 text-amber-500 border border-amber-500/30 segment-active';
-            else if (btn.dataset.style === 'semi-formal') btn.className = 'style-btn px-3 py-1 rounded-md text-[10px] font-bold transition-all bg-blue-500/20 text-blue-400 border border-blue-500/30 segment-active';
-            else btn.className = 'style-btn px-3 py-1 rounded-md text-[10px] font-bold transition-all bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 segment-active';
-            selectedStyle = btn.dataset.style;
+        // ============================================
+        // SETTINGS
+        // ============================================
+        function toggleSettings(show = true) {
+            if (show) {
+                settingsOverlay.classList.remove('hidden');
+                renderSettingsContent();
+            } else {
+                settingsOverlay.classList.add('hidden');
+            }
         }
 
-        function showLoading(show, step = 'THINKING', status = '') {
-            if (show) { loadingIndicator.classList.remove('hidden'); setStep(step, status); }
-            else loadingIndicator.classList.add('hidden');
-        }
-
-        function setStep(step, status) { loadingStepEl.textContent = step; if (status) loadingStatusEl.textContent = status; }
-
-        function showToast(msg, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const div = document.createElement('div');
-            const bgClass = type === 'success' ? 'bg-emerald-600' : (type === 'error' ? 'bg-red-600' : 'bg-slate-800');
-            div.className = `${bgClass} text-white text-[10px] font-bold px-4 py-2 rounded-full shadow-2xl animate-fade flex items-center gap-2 border border-white/10`;
-            div.innerHTML = `<span>${type === 'success' ? '✓' : (type === 'error' ? '✕' : 'ℹ')}</span> ${msg}`;
-            container.appendChild(div);
-            setTimeout(() => { div.classList.add('opacity-0', 'translate-y-2'); setTimeout(() => div.remove(), 500); }, 4000);
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.getElementById('history-sidebar');
-            sidebarOpen = !sidebarOpen;
-            if (sidebarOpen) { sidebar.classList.remove('closed'); renderHistory(); }
-            else { sidebar.classList.add('closed'); }
-        }
-
-        function quickPrompt(text) { messageInput.value = text; messageInput.focus(); messageInput.dispatchEvent(new Event('input')); }
-        function saveToFile() { 
-            if (!isConnected) return; 
-            showSaveFileModal((filename) => {
-                ws.send(JSON.stringify({ type: 'save', filename: filename }));
+        function renderSettingsContent() {
+            settingsContent.innerHTML = `
+                <div class="settings-section">
+                    <h3>Konfigurasi AI</h3>
+                    <div class="settings-field">
+                        <label>AI Model</label>
+                        <input type="text" id="setting-model" placeholder="Contoh: qwen/qwen3.6-plus:free">
+                    </div>
+                    <div class="settings-field">
+                        <label>OpenRouter API Key</label>
+                        <input type="password" id="setting-api-key" placeholder="Masukkan API Key...">
+                    </div>
+                    <button id="save-settings-btn">Simpan & Validasi</button>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Usage Statistics</h3>
+                    <div id="usage-stats">
+                        <div class="stat-row"><span>Total Requests</span><span id="usage-requests">0</span></div>
+                        <div class="stat-row"><span>Input Tokens</span><span id="usage-input">0</span></div>
+                        <div class="stat-row"><span>Output Tokens</span><span id="usage-output">0</span></div>
+                        <div class="stat-row"><span>Total Tokens</span><span id="usage-total">0</span></div>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Skill Management</h3>
+                    <div id="skills-list">Loading...</div>
+                    <div class="skill-actions">
+                        <button id="download-template-btn" class="settings-secondary-btn">
+                            📥 Download Template
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Load settings
+            fetch('/settings').then(r => r.json()).then(data => {
+                document.getElementById('setting-model').value = data.model || '';
+                document.getElementById('setting-api-key').value = data.api_key || '';
+            });
+            
+            // Load stats
+            fetch('/stats').then(r => r.json()).then(data => {
+                document.getElementById('usage-requests').textContent = data.total_requests || 0;
+                document.getElementById('usage-input').textContent = data.input_tokens || 0;
+                document.getElementById('usage-output').textContent = data.output_tokens || 0;
+                document.getElementById('usage-total').textContent = data.total_tokens || 0;
+            });
+            
+            // Load skills
+            fetch('/skills/list-detail').then(r => r.json()).then(data => {
+                const skillsList = document.getElementById('skills-list');
+                const activeSkill = data.active_skill;
+                if (data.skills && data.skills.length > 0) {
+                    skillsList.innerHTML = `
+                        <table class="skills-table">
+                            <thead>
+                                <tr>
+                                    <th>Nama</th>
+                                    <th>Ver</th>
+                                    <th>Ref</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.skills.map(s => `
+                                    <tr class="${s.name === activeSkill ? 'active' : ''}">
+                                        <td>${s.name}</td>
+                                        <td>${s.version || '1.0'}</td>
+                                        <td>${s.references_count || 0}</td>
+                                        <td>${s.name === activeSkill ? 'Aktif' : '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    skillsList.innerHTML = '<div class="no-skills">Belum ada skill terpasang</div>';
+                }
+            });
+            
+            // Download template button
+            document.getElementById('download-template-btn').addEventListener('click', () => {
+                window.location.href = '/skills/template';
+            });
+            
+            // Save button handler
+            document.getElementById('save-settings-btn').addEventListener('click', async () => {
+                const model = document.getElementById('setting-model').value.trim();
+                const apiKey = document.getElementById('setting-api-key').value.trim();
+                
+                if (!model || !apiKey) {
+                    showToast('Mohon isi model dan API Key', 'error');
+                    return;
+                }
+                
+                try {
+                    const res = await fetch('/settings/validate-and-save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model, api_key: apiKey })
+                    });
+                    const data = await res.json();
+                    
+                    if (res.ok) {
+                        showToast('Setting disimpan!', 'success');
+                        fetchModelInfo();
+                    } else {
+                        showToast(data.detail || 'Gagal menyimpan', 'error');
+                    }
+                } catch (e) {
+                    showToast('Gagal terhubung ke server', 'error');
+                }
             });
         }
-        function resetSession() { 
-            showConfirmModal(
-                'Mulai Sesi Baru',
-                'Histori sesi ini akan dihapus. Lanjutkan?',
-                () => {
-                    ws.send(JSON.stringify({ type: 'reset' })); 
-                    clearChat(); 
-                    showToast('Sesi baru dimulai', 'info');
-                },
-                'Mulai Sesi Baru'
-            ); 
-        }
-        function clearChat() { 
-            chatContainer.innerHTML = ''; 
-            const welcome = document.createElement('div'); 
-            welcome.id = 'welcome-state'; 
-            welcome.className = 'flex-1 flex flex-col items-center justify-center text-center animate-fade'; 
-            welcome.innerHTML = `
-                <h2 class="text-4xl font-extrabold text-white mb-4 tracking-tight">Kyuraa</h2>
-                <p class="text-slate-400 text-sm md:text-base max-w-sm mx-auto leading-relaxed opacity-80">
-                    Asisten AI pribadi dengan berbagai skill akademik. Aktifkan skill yang kamu butuhkan dan biarkan Kyuraa bekerja.
-                </p>
-            `; 
-            chatContainer.appendChild(welcome); 
-            resetStats(); 
-        }
-        function resetStats() { 
-            sessionRequests = 0; 
-            sessionInputTokens = 0; 
-            sessionOutputTokens = 0; 
-            sessionTotalTokens = 0;
-            if (statRequests) statRequests.textContent = 'Req: 0';
-            if (statInput) statInput.textContent = 'In: 0';
-            if (statOutput) statOutput.textContent = 'Out: 0';
-            if (statTotal) statTotal.textContent = 'Total: 0';
-            if (statTime) statTime.textContent = '0s';
-        }
-        function formatNumber(num) { return num.toLocaleString('id-ID'); }
-        function getElapsedTime() { if (!startTime) return '0s'; return Math.floor((Date.now() - startTime) / 1000) + 's'; }
-        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
-        function scrollToBottom() { chatContainer.scrollTop = chatContainer.scrollHeight; }
 
-        // --- Skill Management Functions ---
-        async function fetchSkillsList() {
+        // ============================================
+        // CONFIRM MODAL
+        // ============================================
+        let confirmCallback = null;
+
+        function showConfirm(message, onConfirm) {
+            document.getElementById('confirm-message').textContent = message;
+            confirmModal.classList.remove('hidden');
+            confirmCallback = onConfirm;
+        }
+
+        function hideConfirm() {
+            confirmModal.classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        document.getElementById('confirm-cancel').addEventListener('click', hideConfirm);
+        document.getElementById('confirm-ok').addEventListener('click', () => {
+            if (confirmCallback) confirmCallback();
+            hideConfirm();
+        });
+        document.querySelector('.confirm-backdrop').addEventListener('click', hideConfirm);
+
+        // ============================================
+        // FETCH INITIAL STATE
+        // ============================================
+        async function fetchModelInfo() {
             try {
-                const r = await fetch('/skills/list-detail');
-                const data = await r.json();
-                
-                const countEl = document.getElementById('skill-count');
-                const tableContainer = document.getElementById('skills-table-container');
-                const emptyEl = document.getElementById('skills-empty');
-                const tbody = document.getElementById('skills-table-body');
-                
-                if (data.skills && data.skills.length > 0) {
-                    countEl.textContent = `${data.skills.length} skill`;
-                    tbody.innerHTML = data.skills.map(skill => `
-                        <tr class="hover:bg-white/5 transition-colors">
-                            <td class="px-3 py-2.5">
-                                <span class="font-bold text-slate-200">${escapeHtml(skill.name)}</span>
-                            </td>
-                            <td class="px-3 py-2.5 hidden md:table-cell">
-                                <span class="text-slate-400 line-clamp-1 max-w-[200px] block" title="${escapeHtml(skill.description)}">${escapeHtml(skill.description)}</span>
-                            </td>
-                            <td class="px-3 py-2.5 text-center">
-                                <span class="font-mono text-slate-500">${skill.version}</span>
-                            </td>
-                            <td class="px-3 py-2.5 text-center">
-                                <span class="font-mono text-cyan-400">${skill.references_count}</span>
-                            </td>
-                            <td class="px-3 py-2.5 text-center">
-                                ${skill.is_active 
-                                    ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[8px] font-bold">AKTIF</span>'
-                                    : '<span class="px-2 py-0.5 rounded-full bg-white/5 text-slate-500 text-[8px] font-bold">NONAKTIF</span>'
-                                }
-                            </td>
-                        </tr>
-                    `).join('');
-                    tableContainer.classList.remove('hidden');
-                    emptyEl.classList.add('hidden');
-                } else {
-                    countEl.textContent = '0 skill';
-                    tableContainer.classList.add('hidden');
-                    emptyEl.classList.remove('hidden');
-                }
+                const res = await fetch('/info');
+                const data = await res.json();
+                modelBadge.textContent = data.model || 'Unknown';
             } catch (e) {
-                console.error('Failed to fetch skills list:', e);
-                showToast('Gagal memuat daftar skill', 'error');
+                modelBadge.textContent = 'Offline';
             }
         }
 
-        function downloadSkillTemplate() {
-            window.location.href = '/skills/template';
-            showToast('Template skill sedang diunduh...', 'success');
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.getElementById('new-session-btn').addEventListener('click', createNewSession);
+        document.getElementById('sidebar-toggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        });
+        document.getElementById('sidebar-settings-btn').addEventListener('click', () => toggleSettings(true));
+        document.getElementById('settings-close').addEventListener('click', () => toggleSettings(false));
+        settingsOverlay.addEventListener('click', (e) => {
+            if (e.target === settingsOverlay) toggleSettings(false);
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // Example prompt clicks
+        document.querySelectorAll('.example-prompt').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const prompt = btn.dataset.prompt;
+                messageInput.value = prompt;
+                messageInput.focus();
+                sendMessage();
+            });
+        });
+
+        // ============================================
+        // INITIALIZE
+        // ============================================
+        async function init() {
+            await loadSessions();
+            await fetchModelInfo();
+            updateStatsBar();
+            updateSkillBadgeFromServer();
+            
+            if (sessions.length > 0) {
+                selectSession(sessions[0].session_id);
+            }
         }
 
-        // Fetch skills when settings page opens
-        const originalToggleSettings = toggleSettings;
-        toggleSettings = function(show = true) {
-            originalToggleSettings(show);
-            if (show) {
-                setTimeout(() => fetchSkillsList(), 100);
-            }
-        };
-
-        messageInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
-        messageInput.addEventListener('input', () => { messageInput.style.height = 'auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px'; const len = messageInput.value.length; if (len > 0) { charCountEl.textContent = `${len} characters`; charCountEl.classList.remove('hidden'); } else { charCountEl.classList.add('hidden'); } });
-        if (window.innerWidth > 1024) toggleSidebar();
-        loadUsageStats();
-        connect();
+        init();
     </script>
+    
+    <style>
+        /* Additional styles for JS-generated elements */
+        .no-sessions {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        .session-item {
+            position: relative;
+        }
+        
+        .session-delete {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px;
+            transition: opacity 0.2s;
+        }
+        
+        .session-item:hover .session-delete {
+            opacity: 1;
+        }
+        
+        .session-delete:hover {
+            color: #e74c3c;
+        }
+        
+        .session-group-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px 12px 6px;
+            margin-top: 8px;
+        }
+        
+        .session-group-label:first-child {
+            margin-top: 0;
+            padding-top: 4px;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            z-index: 200;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .toast-info { background: #6B6560; color: white; }
+        .toast-success { background: #27ae60; color: white; }
+        .toast-error { background: #e74c3c; color: white; }
+        
+        /* Confirm Modal */
+        #confirm-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 150;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #confirm-modal.hidden {
+            display: none;
+        }
+        
+        .confirm-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+        }
+        
+        .confirm-dialog {
+            position: relative;
+            background: var(--bg-surface);
+            padding: 24px;
+            border-radius: 16px;
+            max-width: 320px;
+            box-shadow: var(--shadow-md);
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        .confirm-dialog h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .confirm-dialog p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+        
+        .confirm-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .confirm-actions button {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        #confirm-cancel {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        
+        #confirm-cancel:hover {
+            background: var(--bg-hover);
+        }
+        
+        #confirm-ok {
+            background: var(--accent);
+            border: none;
+            color: white;
+        }
+        
+        #confirm-ok:hover {
+            background: var(--accent-hover);
+        }
+        
+        /* Settings stats */
+        #usage-stats {
+            background: var(--bg-sidebar);
+            padding: 16px;
+            border-radius: 12px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            padding: 6px 0;
+            color: var(--text-secondary);
+        }
+        
+        .stat-row span:last-child {
+            font-family: monospace;
+            color: var(--text-primary);
+        }
+        
+        /* Skills in settings */
+        .skill-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            background: var(--bg-sidebar);
+        }
+        
+        .skill-item.active {
+            background: var(--accent-light);
+            border: 1px solid var(--accent);
+        }
+        
+        .skill-item .skill-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .skill-item .skill-status {
+            font-size: 11px;
+            color: var(--accent);
+        }
+        
+        .no-skills {
+            padding: 16px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        /* Skills table in settings */
+        .skills-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        
+        .skills-table th {
+            text-align: left;
+            padding: 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .skills-table td {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .skills-table tr.active td {
+            background: var(--accent-light);
+        }
+        
+        .skill-actions {
+            margin-top: 12px;
+        }
+        
+        .settings-secondary-btn {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .settings-secondary-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        /* Disconnect Overlay */
+        #disconnect-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(249, 247, 244, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        
+        #disconnect-overlay.hidden {
+            display: none;
+        }
+        
+        .disconnect-content {
+            text-align: center;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .disconnect-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            background: #fee;
+            border: 2px solid #fcc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+        
+        .disconnect-content h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+        
+        .disconnect-content p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+        
+        #reconnect-status {
+            font-size: 14px;
+            color: var(--accent);
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+        
+        .disconnect-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        
+        .disconnect-actions button {
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        #reconnect-btn {
+            background: var(--accent);
+            border: none;
+            color: white;
+        }
+        
+        #reconnect-btn:hover {
+            background: var(--accent-hover);
+        }
+        
+        #reload-btn {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        
+        #reload-btn:hover {
+            background: var(--bg-hover);
+        }
+        
+        /* Stats Bar */
+        #input-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stats-bar {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+        
+        .stat-divider {
+            margin: 0 6px;
+            opacity: 0.5;
+        }
+        
+        .stat-total {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        /* Arabic text rendering */
+        .arabic-text {
+            font-family: 'Noto Naskh Arabic', serif;
+            direction: rtl;
+            unicode-bidi: embed;
+            display: inline-block;
+        }
+        
+        .arabic-block {
+            font-family: 'Noto Naskh Arabic', serif;
+            direction: rtl;
+            text-align: right;
+            background: var(--bg-sidebar);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border-right: 3px solid var(--accent);
+            margin: 8px 0;
+            line-height: 1.8;
+        }
+        
+        .code-block {
+            background: var(--bg-sidebar);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+    </style>
 </body>
 </html>
