@@ -29,18 +29,32 @@ class LLMClient:
         max_tokens: int | None = None,
         timeout: int = 120,
     ):
-        self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
+        # 1. Determine Provider
+        self._provider = os.environ.get("ACTIVE_PROVIDER", "openrouter").lower()
+        
+        # 2. Get Credentials based on Provider
+        if self._provider == "google":
+            self._api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+            raw_model = model or os.environ.get("GOOGLE_MODEL", "gemini-2.0-flash")
+            # Strip 'google/' prefix and OpenRouter ':free' or ':online' suffixes for Google Direct API
+            self._model_name = raw_model.replace("google/", "").split(":")[0]
+            self._base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+        else:
+            self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
+            self._model_name = model or os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "qwen/qwen3.6-plus:free")
+            self._base_url = "https://openrouter.ai/api/v1"
+
         if not self._api_key:
+            prefix = "GOOGLE" if self._provider == "google" else "OPENROUTER"
             raise ValueError(
-                "OPENROUTER_API_KEY is required. Set it in .env or pass api_key parameter."
+                f"{prefix}_API_KEY is required for {self._provider}. Set it in .env or settings."
             )
 
         self._client = OpenAI(
             api_key=self._api_key,
-            base_url="https://openrouter.ai/api/v1",
+            base_url=self._base_url,
             timeout=timeout,
         )
-        self._model_name = model or os.environ.get("AGENT_MODEL", "qwen/qwen3.6-plus:free")
         self._max_tokens = max_tokens or 4096
         self._timeout = timeout
 

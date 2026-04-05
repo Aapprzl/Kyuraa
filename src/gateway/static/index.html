@@ -97,6 +97,7 @@
         #header-left {
             display: flex;
             align-items: center;
+            gap: 12px;
         }
 
         #sidebar-toggle {
@@ -104,7 +105,9 @@
         }
 
         #header-center {
-            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         #header-right {
@@ -112,6 +115,12 @@
             align-items: center;
             gap: 12px;
             justify-content: flex-end;
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .logo-text {
@@ -697,7 +706,7 @@
             color: var(--text-muted);
         }
 
-        #save-settings-btn {
+        #save-settings-btn, .save-provider-btn {
             width: 100%;
             padding: 14px;
             background: var(--accent);
@@ -710,7 +719,7 @@
             transition: background 0.15s;
         }
 
-        #save-settings-btn:hover {
+        #save-settings-btn:hover, .save-provider-btn:hover {
             background: var(--accent-hover);
         }
 
@@ -739,17 +748,19 @@
     <header id='app-header'>
         <div id='header-left'>
             <button id='sidebar-toggle'>☰</button>
+            <div class="logo-group">
+                <span class='logo-text'>Kyuraa</span>
+                <span class='logo-version'>v1.0</span>
+            </div>
         </div>
         <div id='header-center'>
-            <span class='logo-text'>Kyuraa</span>
-            <span class='logo-version'>v1.0</span>
+            <div id='model-badge'>Loading...</div>
         </div>
         <div id='header-right'>
             <div id='connection-status'>
                 <span class='status-dot disconnected'></span>
                 <span class='status-text'>Offline</span>
             </div>
-            <div id='model-badge'>Loading...</div>
             <div id='user-avatar'>K</div>
         </div>
     </header>
@@ -1587,18 +1598,35 @@
 
         function renderSettingsContent() {
             settingsContent.innerHTML = `
-                <div class="settings-section">
-                    <h3>Konfigurasi AI</h3>
+                <div id="provider-openrouter" class="settings-section">
+                    <h3>Konfigurasi OpenRouter <span class="active-indicator hidden">Aktif</span></h3>
                     <div class="settings-field">
                         <label>AI Model</label>
-                        <input type="text" id="setting-model" placeholder="Contoh: qwen/qwen3.6-plus:free">
+                        <input type="text" id="setting-or-model" placeholder="Contoh: qwen/qwen3.6-plus:free">
                     </div>
                     <div class="settings-field">
                         <label>OpenRouter API Key</label>
-                        <input type="password" id="setting-api-key" placeholder="Masukkan API Key...">
+                        <input type="password" id="setting-or-api-key" placeholder="Masukkan API Key...">
                     </div>
-                    <button id="save-settings-btn">Simpan & Validasi</button>
+                    <button class="save-provider-btn" data-provider="openrouter">Simpan & Gunakan OpenRouter</button>
                 </div>
+                
+                <div class="settings-divider"></div>
+
+                <div id="provider-google" class="settings-section">
+                    <h3>Konfigurasi Google AI <span class="active-indicator hidden">Aktif</span></h3>
+                    <div class="settings-field">
+                        <label>AI Model</label>
+                        <input type="text" id="setting-google-model" placeholder="Contoh: gemini-1.5-flash">
+                    </div>
+                    <div class="settings-field">
+                        <label>Google API Key</label>
+                        <input type="password" id="setting-google-api-key" placeholder="Masukkan API Key...">
+                    </div>
+                    <button class="save-provider-btn" data-provider="google">Simpan & Gunakan Google AI</button>
+                </div>
+                
+                <div class="settings-divider"></div>
                 
                 <div class="settings-section">
                     <h3>Usage Statistics</h3>
@@ -1623,21 +1651,39 @@
             
             // Load settings
             fetch('/settings').then(r => r.json()).then(data => {
-                document.getElementById('setting-model').value = data.model || '';
-                document.getElementById('setting-api-key').value = data.api_key || '';
+                // Populate OpenRouter
+                document.getElementById('setting-or-model').value = data.openrouter.model || '';
+                document.getElementById('setting-or-api-key').value = data.openrouter.api_key || '';
+                
+                // Populate Google
+                document.getElementById('setting-google-model').value = data.google.model || '';
+                document.getElementById('setting-google-api-key').value = data.google.api_key || '';
+                
+                // Highlight active
+                const active = data.active_provider || 'openrouter';
+                const activeCard = document.getElementById(`provider-${active}`);
+                if (activeCard) {
+                    activeCard.classList.add('active-provider');
+                    activeCard.querySelector('.active-indicator').classList.remove('hidden');
+                }
             });
             
             // Load stats
             fetch('/stats').then(r => r.json()).then(data => {
-                document.getElementById('usage-requests').textContent = data.total_requests || 0;
-                document.getElementById('usage-input').textContent = data.input_tokens || 0;
-                document.getElementById('usage-output').textContent = data.output_tokens || 0;
-                document.getElementById('usage-total').textContent = data.total_tokens || 0;
+                const reqEl = document.getElementById('usage-requests');
+                const inEl = document.getElementById('usage-input');
+                const outEl = document.getElementById('usage-output');
+                const totEl = document.getElementById('usage-total');
+                if (reqEl) reqEl.textContent = data.total_requests || 0;
+                if (inEl) inEl.textContent = data.input_tokens || 0;
+                if (outEl) outEl.textContent = data.output_tokens || 0;
+                if (totEl) totEl.textContent = data.total_tokens || 0;
             });
             
             // Load skills
             fetch('/skills/list-detail').then(r => r.json()).then(data => {
                 const skillsList = document.getElementById('skills-list');
+                if (!skillsList) return;
                 const activeSkill = data.active_skill;
                 if (data.skills && data.skills.length > 0) {
                     skillsList.innerHTML = `
@@ -1668,37 +1714,51 @@
             });
             
             // Download template button
-            document.getElementById('download-template-btn').addEventListener('click', () => {
-                window.location.href = '/skills/template';
-            });
+            const downloadBtn = document.getElementById('download-template-btn');
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', () => {
+                    window.location.href = '/skills/template';
+                });
+            }
             
-            // Save button handler
-            document.getElementById('save-settings-btn').addEventListener('click', async () => {
-                const model = document.getElementById('setting-model').value.trim();
-                const apiKey = document.getElementById('setting-api-key').value.trim();
-                
-                if (!model || !apiKey) {
-                    showToast('Mohon isi model dan API Key', 'error');
-                    return;
-                }
-                
-                try {
-                    const res = await fetch('/settings/validate-and-save', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model, api_key: apiKey })
-                    });
-                    const data = await res.json();
+            // Save button handlers (multiple buttons)
+            document.querySelectorAll('.save-provider-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const provider = btn.dataset.provider;
+                    const model = document.getElementById(`setting-${provider === 'openrouter' ? 'or' : 'google'}-model`).value.trim();
+                    const apiKey = document.getElementById(`setting-${provider === 'openrouter' ? 'or' : 'google'}-api-key`).value.trim();
                     
-                    if (res.ok) {
-                        showToast('Setting disimpan!', 'success');
-                        fetchModelInfo();
-                    } else {
-                        showToast(data.detail || 'Gagal menyimpan', 'error');
+                    if (!model || !apiKey) {
+                        showToast('Mohon isi model dan API Key', 'error');
+                        return;
                     }
-                } catch (e) {
-                    showToast('Gagal terhubung ke server', 'error');
-                }
+                    
+                    const originalText = btn.textContent;
+                    btn.textContent = '⏳ Memvalidasi...';
+                    btn.disabled = true;
+                    
+                    try {
+                        const res = await fetch('/settings/validate-and-save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ provider, model, api_key: apiKey })
+                        });
+                        const data = await res.json();
+                        
+                        if (res.ok) {
+                            showToast(`Koneksi ${provider} berhasil!`, 'success');
+                            renderSettingsContent(); // Refresh UI to show active provider
+                            fetchModelInfo();
+                        } else {
+                            showToast(data.detail || 'Gagal menyimpan', 'error');
+                        }
+                    } catch (e) {
+                        showToast('Gagal terhubung ke server', 'error');
+                    } finally {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }
+                });
             });
         }
 
@@ -1953,6 +2013,31 @@
         .stat-row span:last-child {
             font-family: monospace;
             color: var(--text-primary);
+        }
+
+        /* Active provider styling */
+        .settings-section.active-provider {
+            border: 2px solid var(--accent);
+            padding: 16px;
+            border-radius: 12px;
+            background: var(--accent-light);
+        }
+        
+        .active-label {
+            background: var(--accent);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .settings-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 24px 0;
         }
         
         /* Skills in settings */

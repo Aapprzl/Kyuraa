@@ -26,6 +26,7 @@ logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 
 
 class SettingsSchema(BaseModel):
+    provider: str  # 'openrouter' or 'google'
     model: str
     api_key: str
 
@@ -118,8 +119,33 @@ class GatewayServer:
     def _setup_routes(self):
         @self._app.get("/info")
         async def info():
+            # Try to load from settings.json first to reflect manual edits
+            settings_path = Path("workspace/settings.json")
+            model = ""
+            active = ""
+            
+            if settings_path.exists():
+                try:
+                    with open(settings_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        active = data.get("ACTIVE_PROVIDER", "openrouter")
+                        if active == "google":
+                            model = data.get("GOOGLE_MODEL", "")
+                        else:
+                            model = data.get("OPENROUTER_MODEL") or data.get("AGENT_MODEL", "")
+                except: pass
+
+            # Fallback to environment variables if file read failed or missing values
+            if not active: active = os.environ.get("ACTIVE_PROVIDER", "openrouter")
+            if not model:
+                if active == "google":
+                    model = os.environ.get("GOOGLE_MODEL", "")
+                else:
+                    model = os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "")
+
             return {
-                "model": os.environ.get("AGENT_MODEL", "qwen/qwen3.6-plus:free"),
+                "model": model or "Unknown",
+                "provider": active,
                 "version": "1.0.0"
             }
 
@@ -134,29 +160,61 @@ class GatewayServer:
 
         @self._app.get("/settings")
         async def get_settings():
-            model = os.environ.get("AGENT_MODEL", "")
-            api_key = os.environ.get("OPENROUTER_API_KEY", "")
-            masked_key = ""
-            if api_key:
-                masked_key = api_key[:6] + "********" if len(api_key) > 6 else "********"
+            # OpenRouter
+            or_model = os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "")
+            or_key = os.environ.get("OPENROUTER_API_KEY", "")
+            
+            # Google
+            google_model = os.environ.get("GOOGLE_MODEL", "")
+            google_key = os.environ.get("GOOGLE_API_KEY", "")
+            
+            # Active
+            active = os.environ.get("ACTIVE_PROVIDER", "openrouter")
+
+            def mask(key):
+                return key[:6] + "********" if len(key) > 6 else "********" if key else ""
+
             return {
-                "model": model,
-                "api_key": masked_key
+                "openrouter": {
+                    "model": or_model,
+                    "api_key": mask(or_key)
+                },
+                "google": {
+                    "model": google_model,
+                    "api_key": mask(google_key)
+                },
+                "active_provider": active
             }
 
         @self._app.post("/settings/validate-and-save")
         async def save_settings(settings: SettingsSchema):
-            # 1. Resolve Masked API Key
+            # 1. Resolve Masked API Key & Determine Prefix
+            provider = settings.provider.lower()
             api_key = settings.api_key
+            
+            key_env = "OPENROUTER_API_KEY" if provider == "openrouter" else "GOOGLE_API_KEY"
+            model_env = "OPENROUTER_MODEL" if provider == "openrouter" else "GOOGLE_MODEL"
+            
             if "********" in api_key:
-                api_key = os.environ.get("OPENROUTER_API_KEY", "")
+                api_key = os.environ.get(key_env, "")
 
             # 2. Validate Connection
             from src.agent.llm_client import LLMClient
             
             try:
-                # Temporary client for validation
-                test_client = LLMClient(api_key=api_key, model=settings.model)
+                # Determine model name and URL for validation
+                is_google = (provider == "google")
+                base_url = "https://generativelanguage.googleapis.com/v1beta/openai/" if is_google else "https://openrouter.ai/api/v1"
+                
+                # Correct model name for Google validation (strip google/ and :free etc)
+                valid_model = settings.model
+                if is_google:
+                    valid_model = valid_model.replace("google/", "").split(":")[0]
+
+                test_client = LLMClient(api_key=api_key, model=valid_model)
+                # Overwrite base_url for validation
+                test_client._client.base_url = base_url
+                
                 # Simple test call
                 test_client.chat(
                     system="You are a validator.",
@@ -164,35 +222,45 @@ class GatewayServer:
                 )
             except Exception as e:
                 err_msg = str(e).lower()
-                log("error", f"Validation failed: {e}")
+                log("error", f"Validation failed for {provider}: {e}")
                 if "api_key" in err_msg or "401" in err_msg or "unauthorized" in err_msg:
-                    raise HTTPException(status_code=400, detail="❌ API Key tidak valid. Pastikan key dari OpenRouter sudah benar.")
+                    raise HTTPException(status_code=400, detail=f"❌ API Key {provider} tidak valid.")
                 elif "model" in err_msg or "404" in err_msg:
-                    raise HTTPException(status_code=400, detail="❌ Model tidak ditemukan. Cek ejaan nama model di openrouter.ai/models")
-                elif "connection" in err_msg or "network" in err_msg or "timeout" in err_msg:
-                    raise HTTPException(status_code=400, detail="❌ Tidak dapat terhubung ke server. Periksa koneksi internet.")
+                    raise HTTPException(status_code=400, detail=f"❌ Model {settings.model} tidak ditemukan di {provider}.")
                 else:
-                    raise HTTPException(status_code=400, detail=f"❌ Terjadi kesalahan: {str(e)}")
+                    raise HTTPException(status_code=400, detail=f"❌ Kesalahan {provider}: {str(e)}")
 
-            # 3. Save to settings.json
+            # 3. Load existing settings to merge
             settings_path = Path("workspace/settings.json")
-            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            current_settings = {}
+            if settings_path.exists():
+                try:
+                    with open(settings_path, "r", encoding="utf-8") as f:
+                        current_settings = json.load(f)
+                except: pass
+
+            # 4. Update settings
+            current_settings[key_env] = api_key
+            current_settings[model_env] = settings.model
+            current_settings["ACTIVE_PROVIDER"] = provider
             
+            # Sync AGENT_MODEL for backward compatibility & UI badge
+            current_settings["AGENT_MODEL"] = settings.model
+
             with open(settings_path, "w", encoding="utf-8") as f:
-                json.dump({
-                    "AGENT_MODEL": settings.model,
-                    "OPENROUTER_API_KEY": api_key
-                }, f, indent=4)
+                json.dump(current_settings, f, indent=4)
 
-            # 4. Update os.environ
+            # 5. Update os.environ
+            os.environ[key_env] = api_key
+            os.environ[model_env] = settings.model
+            os.environ["ACTIVE_PROVIDER"] = provider
             os.environ["AGENT_MODEL"] = settings.model
-            os.environ["OPENROUTER_API_KEY"] = api_key
 
-            # 5. Reset Agents (force creation with new config)
+            # 6. Reset Agents
             self._agents.clear()
             
-            log("gateway", f"Settings updated — model: {settings.model}")
-            return {"status": "ok", "message": "✅ Koneksi berhasil! Setting disimpan."}
+            log("gateway", f"Settings updated for {provider} — model: {settings.model}")
+            return {"status": "ok", "message": f"✅ Koneksi {provider} berhasil! Setting disimpan."}
 
         @self._app.get("/")
         async def index():

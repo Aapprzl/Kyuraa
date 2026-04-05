@@ -1,4 +1,8 @@
 {
     "AGENT_MODEL": "qwen/qwen3.6-plus:free",
-    "OPENROUTER_API_KEY": "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"
+    "OPENROUTER_MODEL": "qwen/qwen3.6-plus:free",
+    "OPENROUTER_API_KEY": "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",
+    "GOOGLE_MODEL": "google/gemini-2.5-flash",
+    "GOOGLE_API_KEY": "AIzaSyBTR2le-bH0B2s7XiQUvNKt_xTDg3LgY3I",
+    "ACTIVE_PROVIDER": "google"
 }
