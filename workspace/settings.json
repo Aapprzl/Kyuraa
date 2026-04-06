@@ -1,8 +1,8 @@
 {
-    "AGENT_MODEL": "qwen/qwen3.6-plus:free",
+    "OPENROUTER_API_KEY": "enc:gAAAAABp0x_h3tQFXHdsTt7toodXYopmoZA0pr27Q1m02geLCM2IXAHf-QqCco69ywEpjewuXXBkzIQ4147zGkE-QuOQFPR0zNrk9qVOmuXK65H5CM7qwRt7M4EjKMSGz9MD7U07fcYVIZfITfEMxdNQZXuiRGV6IWOJOE6ruOtHxDt9O-GN4ZM=",
     "OPENROUTER_MODEL": "qwen/qwen3.6-plus:free",
-    "OPENROUTER_API_KEY": "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",
-    "GOOGLE_MODEL": "google/gemini-2.5-flash",
-    "GOOGLE_API_KEY": "AIzaSyBTR2le-bH0B2s7XiQUvNKt_xTDg3LgY3I",
-    "ACTIVE_PROVIDER": "google"
+    "ACTIVE_PROVIDER": "openrouter",
+    "AGENT_MODEL": "qwen/qwen3.6-plus:free",
+    "GOOGLE_API_KEY": "enc:gAAAAABp0x_hK-vM31fBWY2dMBGZYn-fT7MhfYMgefvkTbpCd8efK3eZtTMCbwa0lF5-37rPMNxooABwb2N5FRlFoWaWyRFJoA==",
+    "GOOGLE_MODEL": "google/gemini-2.0-flash:free"
 }

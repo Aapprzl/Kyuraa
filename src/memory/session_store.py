@@ -26,7 +26,7 @@ class SessionStore:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
-                    name TEXT,
+                    name TEXT DEFAULT '',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -42,6 +42,15 @@ class SessionStore:
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
                 )
             """)
+            # Migrasi kolom tambahan (idempotent)
+            try:
+                conn.execute("ALTER TABLE sessions ADD COLUMN name TEXT")
+            except Exception:
+                pass  # Kolom sudah ada
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN timestamp TEXT")
+            except Exception:
+                pass  # Kolom sudah ada
             conn.commit()
 
     def create_session(self, session_id: str) -> dict:
@@ -118,7 +127,19 @@ class SessionStore:
                 ORDER BY s.updated_at DESC
                 """
             ).fetchall()
-        return [dict(row) for row in rows]
+        result = []
+        for row in rows:
+            try:
+                result.append({
+                    "session_id": row["session_id"],
+                    "name": row["name"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "message_count": row["message_count"]
+                })
+            except Exception:
+                continue
+        return result
 
     def get_session_messages(self, session_id: str) -> list[dict]:
         with self._get_conn() as conn:

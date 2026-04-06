@@ -1,6 +1,5 @@
 import re
 import uuid
-from pathlib import Path
 from typing import Any, Generator
 
 from src.agent.skill_manager import SkillManager
@@ -96,6 +95,38 @@ class AgentLoop:
 
         return (False, None, None)
 
+    def _build_skill_message(self, action: str, data: str | None) -> tuple[str, dict]:
+        """Bangun teks respons dan metadata untuk perintah skill.
+        Mengembalikan (message_text, extra_fields) untuk digunakan run() dan run_stream().
+        """
+        base = {
+            "session_id": self._session_id,
+            "language": "mixed",
+            "style": "command",
+            "tool_results": [],
+        }
+        if action == 'activated':
+            skill_info = self._skill_manager.available_skills.get(data, {})
+            desc = skill_info.get("description", "")
+            if isinstance(desc, list):
+                desc = " ".join(desc)
+            msg = f"✅ Skill **{data}** aktif!"
+            if desc:
+                msg += f"\n\n{desc}\n"
+            else:
+                msg += "\n"
+            action_verb = "Kirim perintah" if not desc else "Mulai"
+            msg += f"{action_verb} untuk menggunakan skill ini."
+            return msg, {**base, "response": msg, "skill_activated": data}
+
+        if action == 'deactivated':
+            msg = "✅ Skill dinonaktifkan. Saya kembali sebagai asisten biasa."
+            return msg, {**base, "response": msg, "skill_deactivated": True}
+
+        if action == 'error':
+            msg = f"❌ {data}"
+            return msg, {**base, "response": msg}
+
     def _detect_style(self, user_input: str) -> str:
         input_lower = user_input.lower()
         if any(kw in input_lower for kw in ["akademik", "skripsi", "tesis", "jurnal", "abstrak"]):
@@ -109,48 +140,9 @@ class AgentLoop:
 
         is_skill_cmd, action, data = self.handle_skill_command(user_input)
 
-        if action == 'activated':
-            skill_info = self._skill_manager.available_skills.get(data, {})
-            desc = skill_info.get("description", "")
-            if isinstance(desc, list):
-                desc = " ".join(desc)
-            
-            activation_msg = f"✅ Skill **{data}** aktif!"
-            if desc:
-                activation_msg += f"\n\n{desc}\n"
-            else:
-                activation_msg += "\n"
-            
-            action_verb = "Kirim perintah" if not desc else "Mulai"
-            activation_msg += f"{action_verb} untuk menggunakan skill ini."
-            
-            return {
-                "session_id": self._session_id,
-                "language": "mixed",
-                "style": "command",
-                "response": activation_msg,
-                "skill_activated": data,
-                "tool_results": [],
-            }
-
-        if action == 'deactivated':
-            return {
-                "session_id": self._session_id,
-                "language": "mixed",
-                "style": "command",
-                "response": "✅ Skill dinonaktifkan. Saya kembali sebagai asisten biasa.",
-                "skill_deactivated": True,
-                "tool_results": [],
-            }
-
-        if action == 'error':
-            return {
-                "session_id": self._session_id,
-                "language": "mixed",
-                "style": "command",
-                "response": f"❌ {data}",
-                "tool_results": [],
-            }
+        if action in ('activated', 'deactivated', 'error'):
+            _, result = self._build_skill_message(action, data)
+            return result
 
         lang = self._detect_language(user_input)
         style = self._detect_style(user_input)
@@ -196,56 +188,11 @@ class AgentLoop:
 
         is_skill_cmd, action, data = self.handle_skill_command(user_input)
 
-        if action == 'activated':
-            skill_info = self._skill_manager.available_skills.get(data, {})
-            desc = skill_info.get("description", "")
-            if isinstance(desc, list):
-                desc = " ".join(desc)
-            
-            activation_msg = f"✅ Skill **{data}** aktif!"
-            if desc:
-                activation_msg += f"\n\n{desc}\n"
-            else:
-                activation_msg += "\n"
-            
-            action_verb = "Kirim perintah" if not desc else "Mulai"
-            activation_msg += f"{action_verb} untuk menggunakan skill ini."
-            
-            for char in activation_msg:
+        if action in ('activated', 'deactivated', 'error'):
+            msg, result = self._build_skill_message(action, data)
+            for char in msg:
                 yield (char, None)
-            return {
-                "session_id": self._session_id,
-                "language": "mixed",
-                "style": "command",
-                "response": activation_msg,
-                "skill_activated": data,
-                "tool_results": [],
-            }
-
-        if action == 'deactivated':
-            response_text = "✅ Skill dinonaktifkan. Saya kembali sebagai asisten biasa."
-            for char in response_text:
-                yield (char, None)
-            return {
-                "session_id": self._session_id,
-                "language": "mixed",
-                "style": "command",
-                "response": response_text,
-                "skill_deactivated": True,
-                "tool_results": [],
-            }
-
-        if action == 'error':
-            response_text = f"❌ {data}"
-            for char in response_text:
-                yield (char, None)
-            return {
-                "session_id": self._session_id,
-                "language": "mixed",
-                "style": "command",
-                "response": response_text,
-                "tool_results": [],
-            }
+            return result
 
         lang = self._detect_language(user_input)
         style = self._detect_style(user_input)

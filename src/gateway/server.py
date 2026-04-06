@@ -6,7 +6,7 @@ import signal
 import socket
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import psutil
 
@@ -14,8 +14,9 @@ import psutil
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.utils.logger import log
+from src.utils.security import SecurityManager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
@@ -53,12 +54,32 @@ def check_port_available(host: str, port: int) -> bool:
 def write_pid_lock(port: int) -> Path:
     lock_file = Path(f'.kyuraa-lock-{port}')
     if lock_file.exists():
-        old_pid = int(lock_file.read_text().strip())
-        if psutil.pid_exists(old_pid):
-            print(f"\n❌ Kyuraa sudah berjalan (PID: {old_pid})")
-            print(f"   Tutup instance yang lama terlebih dahulu.\n")
-            sys.exit(1)
-        else:
+        try:
+            old_pid = int(lock_file.read_text().strip())
+            if psutil.pid_exists(old_pid):
+                print(f"\n⚠️  Kyuraa sudah berjalan (PID: {old_pid})")
+                choice = input("   Tutup paksa instance lama dan mulai baru? [Y/n]: ").strip().lower()
+                
+                if choice == 'y' or choice == '':
+                    print(f"   Menutup PID {old_pid}...")
+                    try:
+                        p = psutil.Process(old_pid)
+                        p.terminate()
+                        p.wait(timeout=3)
+                    except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                        try: p.kill() 
+                        except: pass
+                    lock_file.unlink(missing_ok=True)
+                    log("gateway", f"Forced termination of old instance (PID {old_pid})")
+                else:
+                    print("   Dibatalkan. Silakan gunakan instance yang sudah ada.\n")
+                    sys.exit(0)
+            else:
+                # PID tidak ada lagi — lock file basi, hapus dan lanjutkan
+                lock_file.unlink(missing_ok=True)
+                log("warn", f"Stale lock file dihapus (PID {old_pid} sudah tidak ada)")
+        except (ValueError, OSError):
+            # File corrupt atau tidak bisa dibaca → hapus saja
             lock_file.unlink(missing_ok=True)
 
     lock_file.write_text(str(os.getpid()))
@@ -68,13 +89,19 @@ def write_pid_lock(port: int) -> Path:
 
 # Load env at module level so `app` below respects .env
 def _load_env_early():
+    SecurityManager.initialize()  # Inisialisasi kunci master & gateway token
+    
     settings_path = Path("workspace/settings.json")
     if settings_path.exists():
         try:
             with open(settings_path, "r", encoding="utf-8") as f:
-                for key, value in json.load(f).items():
-                    os.environ[key] = value
-        except Exception:
+                data = json.load(f)
+                # Dekripsi data sensitif (API Keys) sebelum dipasang ke os.environ
+                data = SecurityManager.decrypt_dict(data)
+                for key, value in data.items():
+                    os.environ[key] = str(value)
+        except Exception as e:
+            log("error", f"Gagal memuat settings terenkripsi: {e}")
             pass
     env_path = Path(".env")
     if env_path.exists():
@@ -89,6 +116,32 @@ _load_env_early()
 _DEFAULT_PORT = int(os.environ.get("GATEWAY_PORT", "8766"))
 
 
+def _purge_old_sessions(days: int = 30) -> int:
+    """Hapus session dan message yang lebih tua dari `days` hari. Dipanggil saat startup."""
+    import sqlite3
+    from datetime import datetime, timedelta
+    db_path = Path("workspace/memory/sessions.db")
+    if not db_path.exists():
+        return 0
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    try:
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.execute(
+                "DELETE FROM messages WHERE session_id IN "
+                "(SELECT session_id FROM sessions WHERE updated_at < ?)",
+                (cutoff,)
+            )
+            cursor = conn.execute(
+                "DELETE FROM sessions WHERE updated_at < ?", (cutoff,)
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+            return deleted
+    except Exception as e:
+        log("warn", f"Session purge error: {e}")
+        return 0
+
+
 class GatewayServer:
     def __init__(self, host: str = "localhost", port: int = _DEFAULT_PORT):
         self._host = host
@@ -97,14 +150,15 @@ class GatewayServer:
         # Enforce single instance — check BEFORE creating app
         if not check_port_available(self._host, self._port):
             print(f"\n❌ ERROR: Port {self._port} sudah digunakan!")
-            print(f"   Kemungkinan Kyuraa sudah berjalan di instance lain.")
-            print(f"   Tutup instance yang lama terlebih dahulu.\n")
+            print("   Kemungkinan Kyuraa sudah berjalan di instance lain.")
+            print("   Tutup instance yang lama terlebih dahulu.\n")
             sys.exit(1)
         write_pid_lock(self._port)
 
         self._app = FastAPI(title="Agent Gateway")
         self._active_sessions: dict[str, dict] = {}
         self._agents: dict[str, Any] = {}
+        self._system_agent: Any = None  # Agent khusus untuk endpoint non-chat (skills, dll)
         self._running = False
         self._session_buffers: dict[str, list[str]] = {}
         self._active_skill: str | None = None
@@ -116,6 +170,15 @@ class GatewayServer:
 
         self._setup_routes()
 
+    def _verify_token(self, request):
+        """Validasi token gateway dari header atau query param."""
+        # Jika request adalah query (untuk WS), token ada di url params
+        cli_token = request.headers.get("X-API-Key") or request.query_params.get("token")
+        srv_token = SecurityManager.get_gateway_token()
+        
+        if not cli_token or cli_token != srv_token:
+            raise HTTPException(status_code=401, detail="❌ Akses dilarang: Token tidak valid.")
+
     def _setup_routes(self):
         @self._app.get("/info")
         async def info():
@@ -123,7 +186,7 @@ class GatewayServer:
             settings_path = Path("workspace/settings.json")
             model = ""
             active = ""
-            
+
             if settings_path.exists():
                 try:
                     with open(settings_path, "r", encoding="utf-8") as f:
@@ -133,10 +196,12 @@ class GatewayServer:
                             model = data.get("GOOGLE_MODEL", "")
                         else:
                             model = data.get("OPENROUTER_MODEL") or data.get("AGENT_MODEL", "")
-                except: pass
+                except Exception:
+                    pass
 
             # Fallback to environment variables if file read failed or missing values
-            if not active: active = os.environ.get("ACTIVE_PROVIDER", "openrouter")
+            if not active:
+                active = os.environ.get("ACTIVE_PROVIDER", "openrouter")
             if not model:
                 if active == "google":
                     model = os.environ.get("GOOGLE_MODEL", "")
@@ -150,7 +215,8 @@ class GatewayServer:
             }
 
         @self._app.get("/stats")
-        async def get_stats():
+        async def get_stats(request: Request):
+            self._verify_token(request)
             return {
                 "total_requests": self._stats['total_requests'],
                 "input_tokens": self._stats['input_tokens'],
@@ -159,15 +225,16 @@ class GatewayServer:
             }
 
         @self._app.get("/settings")
-        async def get_settings():
+        async def get_settings(request: Request):
+            self._verify_token(request)
             # OpenRouter
             or_model = os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "")
             or_key = os.environ.get("OPENROUTER_API_KEY", "")
-            
+
             # Google
             google_model = os.environ.get("GOOGLE_MODEL", "")
             google_key = os.environ.get("GOOGLE_API_KEY", "")
-            
+
             # Active
             active = os.environ.get("ACTIVE_PROVIDER", "openrouter")
 
@@ -187,25 +254,26 @@ class GatewayServer:
             }
 
         @self._app.post("/settings/validate-and-save")
-        async def save_settings(settings: SettingsSchema):
+        async def save_settings(settings: SettingsSchema, request: Request):
+            self._verify_token(request)
             # 1. Resolve Masked API Key & Determine Prefix
             provider = settings.provider.lower()
             api_key = settings.api_key
-            
+
             key_env = "OPENROUTER_API_KEY" if provider == "openrouter" else "GOOGLE_API_KEY"
             model_env = "OPENROUTER_MODEL" if provider == "openrouter" else "GOOGLE_MODEL"
-            
+
             if "********" in api_key:
                 api_key = os.environ.get(key_env, "")
 
             # 2. Validate Connection
             from src.agent.llm_client import LLMClient
-            
+
             try:
                 # Determine model name and URL for validation
                 is_google = (provider == "google")
                 base_url = "https://generativelanguage.googleapis.com/v1beta/openai/" if is_google else "https://openrouter.ai/api/v1"
-                
+
                 # Correct model name for Google validation (strip google/ and :free etc)
                 valid_model = settings.model
                 if is_google:
@@ -214,7 +282,7 @@ class GatewayServer:
                 test_client = LLMClient(api_key=api_key, model=valid_model)
                 # Overwrite base_url for validation
                 test_client._client.base_url = base_url
-                
+
                 # Simple test call
                 test_client.chat(
                     system="You are a validator.",
@@ -237,18 +305,27 @@ class GatewayServer:
                 try:
                     with open(settings_path, "r", encoding="utf-8") as f:
                         current_settings = json.load(f)
-                except: pass
+                except Exception:
+                    log("warn", "settings.json corrupt atau tidak bisa dibaca, akan di-overwrite")
 
-            # 4. Update settings
-            current_settings[key_env] = api_key
-            current_settings[model_env] = settings.model
-            current_settings["ACTIVE_PROVIDER"] = provider
-            
-            # Sync AGENT_MODEL for backward compatibility & UI badge
+            # 4. Update settings & Encrypt
+            if provider == "openrouter":
+                current_settings["OPENROUTER_API_KEY"] = api_key
+                current_settings["OPENROUTER_MODEL"] = settings.model
+                current_settings["ACTIVE_PROVIDER"] = "openrouter"
+            else:
+                current_settings["GOOGLE_API_KEY"] = api_key
+                current_settings["GOOGLE_MODEL"] = settings.model
+                current_settings["ACTIVE_PROVIDER"] = "google"
+
+            # Sync AGENT_MODEL
             current_settings["AGENT_MODEL"] = settings.model
+            
+            # Enkripsi sebelum tulis ke disk
+            encrypted_settings = SecurityManager.encrypt_dict(current_settings)
 
             with open(settings_path, "w", encoding="utf-8") as f:
-                json.dump(current_settings, f, indent=4)
+                json.dump(encrypted_settings, f, indent=4)
 
             # 5. Update os.environ
             os.environ[key_env] = api_key
@@ -256,9 +333,10 @@ class GatewayServer:
             os.environ["ACTIVE_PROVIDER"] = provider
             os.environ["AGENT_MODEL"] = settings.model
 
-            # 6. Reset Agents
+            # 6. Reset Agents (termasuk system agent agar reload config)
             self._agents.clear()
-            
+            self._system_agent = None
+
             log("gateway", f"Settings updated for {provider} — model: {settings.model}")
             return {"status": "ok", "message": f"✅ Koneksi {provider} berhasil! Setting disimpan."}
 
@@ -268,7 +346,19 @@ class GatewayServer:
 
         @self._app.websocket("/ws/{session_id}")
         async def websocket_endpoint(websocket: WebSocket, session_id: str):
+            token = websocket.query_params.get("token")
+            expected = SecurityManager.get_gateway_token()
+            
+            if token != expected:
+                log("ws", f"⚠️  Autentikasi WebSocket DITOLAK — session: {session_id}")
+                log("ws", f"   Diterima: '{token}'")
+                log("ws", f"   Diharapkan: '{expected}'")
+                await websocket.accept() # Terima dulu lalu tutup agar browser melihat kodenya
+                await websocket.close(code=4001)
+                return
+
             await websocket.accept()
+            log("ws", f"✅ Client tersambung — session: {session_id}")
             self._session_buffers[session_id] = []
             log("ws", f"Client connected — session: {session_id}")
 
@@ -345,10 +435,13 @@ class GatewayServer:
                 self._cleanup_session(session_id)
             except Exception as e:
                 log("error", f"WebSocket error: {e}")
-                await websocket.send_json({
-                    "type": "error",
-                    "message": str(e),
-                })
+                try:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": str(e),
+                    })
+                except Exception:
+                    pass  # WS mungkin sudah tutup
                 self._cleanup_session(session_id)
 
         @self._app.get("/health")
@@ -360,7 +453,8 @@ class GatewayServer:
             }
 
         @self._app.get("/sessions")
-        async def list_sessions():
+        async def list_sessions(request: Request):
+            self._verify_token(request)
             from src.memory.session_store import SessionStore
             store = SessionStore()
             sessions = store.list_sessions()
@@ -375,7 +469,7 @@ class GatewayServer:
             if db_path.exists():
                 with sqlite3.connect(str(db_path)) as conn:
                     cursor = conn.execute("""
-                        DELETE FROM sessions 
+                        DELETE FROM sessions
                         WHERE session_id NOT IN (
                             SELECT DISTINCT session_id FROM messages
                         )
@@ -406,7 +500,7 @@ class GatewayServer:
         async def delete_session(session_id: str):
             from src.memory.session_store import SessionStore
             store = SessionStore()
-            result = store.delete_session(session_id)
+            store.delete_session(session_id)
             self._cleanup_session(session_id)
             log("gateway", f"Deleted session: {session_id}")
             return {"success": True}
@@ -430,8 +524,9 @@ class GatewayServer:
             return {"files": files}
 
         @self._app.get("/skills")
-        async def list_skills():
-            agent = self._create_agent("__system__")
+        async def list_skills(request: Request):
+            self._verify_token(request)
+            agent = self._get_system_agent()
             skills_data = []
             for name, info in agent._skill_manager.available_skills.items():
                 desc = info.get("description", "")
@@ -449,7 +544,7 @@ class GatewayServer:
 
         @self._app.post("/skills/activate")
         async def activate_skill(payload: SkillActivateSchema):
-            agent = self._create_agent("__system__")
+            agent = self._get_system_agent()
             skill_name = payload.skill_name.strip()
             try:
                 agent._skill_manager.activate(skill_name)
@@ -464,10 +559,10 @@ class GatewayServer:
 
         @self._app.post("/skills/deactivate")
         async def deactivate_skill():
-            agent = self._create_agent("__system__")
+            agent = self._get_system_agent()
             agent._skill_manager.deactivate()
             self._active_skill = None
-            log("gateway", f"Skill deactivated")
+            log("gateway", "Skill deactivated")
             return {"success": True}
 
         @self._app.get("/skills/template")
@@ -484,13 +579,13 @@ class GatewayServer:
 
         @self._app.get("/skills/list-detail")
         async def list_skills_detail():
-            agent = self._create_agent("__system__")
+            agent = self._get_system_agent()
             skills_data = []
             for name, info in agent._skill_manager.available_skills.items():
                 desc = info.get("description", "")
                 if isinstance(desc, list):
                     desc = " ".join(desc)
-                
+
                 folder_path = Path(info.get("folder_path", ""))
                 refs_count = 0
                 refs_list = []
@@ -498,10 +593,9 @@ class GatewayServer:
                 if references_dir.exists() and references_dir.is_dir():
                     refs_list = [f.name for f in references_dir.iterdir() if f.is_file()]
                     refs_count = len(refs_list)
-                
+
                 version = "1.0"
-                version_match = desc.split("version", 1) if desc else []
-                
+
                 skills_data.append({
                     "name": name,
                     "description": desc.replace("\n", " ").strip() if isinstance(desc, str) else str(desc),
@@ -516,7 +610,19 @@ class GatewayServer:
                 "total": len(skills_data),
             }
 
+    def _get_system_agent(self) -> Any:
+        """Dapatkan agent __system__ khusus untuk endpoint non-chat.
+        Agent ini di-cache tapi tidak menyimpan history chat untuk mencegah memory leak.
+        """
+        if self._system_agent is None:
+            from src.agent.agent_loop import AgentLoop
+            self._system_agent = AgentLoop(session_id="__system__")
+        return self._system_agent
+
     def _create_agent(self, session_id: str) -> Any:
+        """Buat atau dapatkan agent untuk session chat. __system__ ditangani terpisah."""
+        if session_id == "__system__":
+            return self._get_system_agent()
         if session_id not in self._agents:
             from src.agent.agent_loop import AgentLoop
             self._agents[session_id] = AgentLoop(session_id=session_id)
@@ -532,7 +638,6 @@ class GatewayServer:
 
     def run(self):
         self._running = True
-
         log("gateway", f"Server running on http://{self._host}:{self._port}")
         uvicorn.run(self._app, host=self._host, port=self._port, log_level="warning")
 
@@ -549,14 +654,15 @@ def print_banner(skill_count: int = 0, port: int = _DEFAULT_PORT):
 \033[96mv1.0.0 — Personal AI Agent\033[0m
 \033[90mSkill aktif:\033[0m \033[92m{skill_count} skill terdeteksi\033[0m
 \033[90mGateway:\033[0m \033[96mhttp://127.0.0.1:{port}\033[0m
+\033[90mToken Akses:\033[0m \033[93m{token}\033[0m
 \033[90m─────────────────────────────────────────────────────\033[0m
-""".format(skill_count=skill_count, port=port)
+""".format(skill_count=skill_count, port=port, token=SecurityManager.get_gateway_token())
     print(banner)
 
 
 def main():
     from pathlib import Path
-    
+
     # Ensure project root is in sys.path for direct execution
     sys.path.append(str(Path(__file__).parent.parent.parent))
 
@@ -585,6 +691,11 @@ def main():
     host = os.environ.get("GATEWAY_HOST", "localhost")
 
     server = GatewayServer(host=host, port=port)
+
+    # Purge session lama saat startup
+    purged = _purge_old_sessions(days=30)
+    if purged > 0:
+        log("gateway", f"Purged {purged} sessions older than 30 days")
 
     from src.agent.agent_loop import AgentLoop
     temp_agent = AgentLoop(session_id="__system__")

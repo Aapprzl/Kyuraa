@@ -13,7 +13,8 @@ def _load_env():
             line = line.strip()
             if "=" in line and not line.startswith("#"):
                 key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
+                if key.strip() not in os.environ:
+                    os.environ[key.strip()] = value.strip()
 
 
 _load_env()
