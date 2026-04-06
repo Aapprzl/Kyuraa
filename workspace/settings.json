@@ -1,8 +1,18 @@
 {
-    "OPENROUTER_API_KEY": "enc:gAAAAABp0x_h3tQFXHdsTt7toodXYopmoZA0pr27Q1m02geLCM2IXAHf-QqCco69ywEpjewuXXBkzIQ4147zGkE-QuOQFPR0zNrk9qVOmuXK65H5CM7qwRt7M4EjKMSGz9MD7U07fcYVIZfITfEMxdNQZXuiRGV6IWOJOE6ruOtHxDt9O-GN4ZM=",
+    "OPENROUTER_API_KEY": "enc:gAAAAABp0z7HR4c9cWCnyvumavpxuCP2hojoxvaD1mVco5RCc6i4PfNScbFub2BMqoHroc0aKiIv5m4BRaW74xUQCOVYe6ogLi7IrRSlR-IUKVgbSFOu2uU7nstNkd59AYw-DmJQ5UAcNp0H17UAKRG54Eh2bSl6AmcKEbE3NmJkC6muG-CkJ8o=",
     "OPENROUTER_MODEL": "qwen/qwen3.6-plus:free",
-    "ACTIVE_PROVIDER": "openrouter",
-    "AGENT_MODEL": "qwen/qwen3.6-plus:free",
-    "GOOGLE_API_KEY": "enc:gAAAAABp0x_hK-vM31fBWY2dMBGZYn-fT7MhfYMgefvkTbpCd8efK3eZtTMCbwa0lF5-37rPMNxooABwb2N5FRlFoWaWyRFJoA==",
-    "GOOGLE_MODEL": "google/gemini-2.0-flash:free"
+    "ACTIVE_PROVIDER": "google",
+    "AGENT_MODEL": "gemini-2.5-flash",
+    "GOOGLE_API_KEY": "enc:gAAAAABp06Cl6_qYShbSQs5g1hd00MG1k6QnRG8QFTWwNHjaSaRs2hOuMaT9OxXtRpz3XjxZsmDTOjiXdPS91QlU4b1_QSY9uCapoDe6XdmDpGZV3vHUKT7uCpZ4a-DvWxOMl-tYP6oL",
+    "GOOGLE_MODEL": "gemini-2.5-flash",
+    "TOOLS_STATE": {
+        "detect_language": true,
+        "read_file": true,
+        "write_file": true,
+        "save_translation": true,
+        "list_output_files": true,
+        "load_reference": true,
+        "open_output_folder": true,
+        "word-counter": false
+    }
 }

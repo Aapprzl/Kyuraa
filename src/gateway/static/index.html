@@ -1355,6 +1355,35 @@
             background: var(--bg-hover);
             color: var(--text-primary);
         }
+        /*  Tools Management UI  */
+        .tool-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            margin-bottom: 6px;
+            transition: background 0.15s;
+        }
+        .tool-item:hover { background: var(--bg-hover); }
+        .tool-item-info { flex: 1; min-width: 0; margin-right: 10px; }
+        .tool-item-name { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+        .tool-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 4px; }
+        .tool-badge.builtin { background: rgba(99,102,241,0.15); color: #818cf8; }
+        .tool-badge.custom  { background: rgba(16,185,129,0.15);  color: #34d399; }
+        .tool-item-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .toggle-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 22px; cursor: pointer; transition: background 0.2s; }
+        .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+        .tools-section-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin: 14px 0 6px; }
+        .tools-action-row { display: flex; gap: 8px; margin-top: 12px; }
+        .tools-action-row button { flex: 1; }
+        #tools-count-badge { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
 
         /* Settings stats */
         #usage-stats {
@@ -2287,6 +2316,8 @@
                         <span class="bubble-time">${time}</span>
                     </div>
                 </div>
+
+
             `;
             // Fix XSS: gunakan addEventListener bukan onclick attribute
             div.querySelector('.bubble-copy-btn').addEventListener('click', () => copyToClipboard(text));
@@ -2324,6 +2355,8 @@
                         </div>
                     </div>
                 </div>
+
+
             `;
             // Fix XSS: gunakan addEventListener bukan onclick attribute
             div.querySelector('.bubble-copy-btn').addEventListener('click', () => copyToClipboard(text));
@@ -2352,6 +2385,8 @@
                         </div>
                     </div>
                 </div>
+
+
             `;
             messagesContainer.appendChild(currentAgentMessage);
             scrollToBottom();
@@ -2667,6 +2702,7 @@
                         </div>
                     </div>
                 </div>
+
                 
                 <div class="settings-divider"></div>
 
@@ -2715,6 +2751,7 @@
                         <div class="stat-row"><span>Total Tokens</span><span id="usage-total">0</span></div>
                     </div>
                 </div>
+
                 
                 <div class="settings-section">
                     <h3>Skill Management</h3>
@@ -2724,7 +2761,28 @@
                             📥 Download Template
                         </button>
                     </div>
+                </div>                    </div>
                 </div>
+
+                <div class="settings-divider"></div>
+
+                <div class="settings-section">
+                    <h3> Tools Management</h3>
+                    <div id="tools-count-badge">Memuat tools...</div>
+                    <div id="tools-builtin-label" class="tools-section-label">Built-in Tools</div>
+                    <div id="tools-builtin-list"></div>
+                    <div id="tools-custom-label" class="tools-section-label" style="display:none">Custom Tools</div>
+                    <div id="tools-custom-list"></div>
+                    <div class="tools-action-row">
+                        <button id="reload-tools-btn" class="settings-secondary-btn"> Reload Tools</button>
+                        <button id="download-tool-template-btn" class="settings-secondary-btn"> Download Template Tool</button>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.6;">
+                         Taruh file <code>.py</code> di <code>workspace/tools/</code> lalu klik Reload.
+                    </div>
+                </div>
+
+
             `;
             
             // Load settings
@@ -2812,6 +2870,37 @@
             if (downloadBtn) {
                 downloadBtn.addEventListener('click', () => {
                     window.location.href = '/skills/template';
+                });
+            }
+            // --- Tools Management INIT ---
+            loadToolsSettings();
+
+            const downloadToolBtn = document.getElementById('download-tool-template-btn');
+            if (downloadToolBtn) {
+                downloadToolBtn.addEventListener('click', () => {
+                    window.location.href = '/tools/template';
+                });
+            }
+
+            const reloadToolsBtn = document.getElementById('reload-tools-btn');
+            if (reloadToolsBtn) {
+                reloadToolsBtn.addEventListener('click', async () => {
+                    reloadToolsBtn.disabled = true;
+                    reloadToolsBtn.textContent = 'Memuat...';
+                    try {
+                        const res = await fetch('/tools/reload', {
+                            method: 'POST',
+                            headers: { 'X-API-Key': gatewayToken }
+                        });
+                        const data = await res.json();
+                        showToast(data.message || 'Tools direload!', 'success');
+                        loadToolsSettings();
+                    } catch (e) {
+                        showToast('Gagal reload tools', 'error');
+                    } finally {
+                        reloadToolsBtn.disabled = false;
+                        reloadToolsBtn.textContent = ' Reload Tools';
+                    }
                 });
             }
             
@@ -2971,6 +3060,91 @@
                 else document.documentElement.removeAttribute('data-theme');
             }
         });
+
+        // ============================================
+        // TOOLS MANAGEMENT LOGIC
+        // ============================================
+        async function loadToolsSettings() {
+            const countBadge = document.getElementById('tools-count-badge');
+            const builtinList = document.getElementById('tools-builtin-list');
+            const customList = document.getElementById('tools-custom-list');
+            const customLabel = document.getElementById('tools-custom-label');
+            
+            try {
+                const res = await fetch('/tools', {
+                    headers: { 'X-API-Key': gatewayToken }
+                });
+                const data = await res.json();
+                
+                if (countBadge) countBadge.textContent = `${data.enabled || 0} tool aktif dari total ${data.total || 0}`;
+                
+                const builtin = data.tools.filter(t => t.source === 'built-in');
+                const custom = data.tools.filter(t => t.source === 'custom');
+                
+                if (builtinList) {
+                    builtinList.innerHTML = builtin.map(t => renderToolItem(t)).join('');
+                }
+                
+                if (customList) {
+                    if (custom.length > 0) {
+                        customList.innerHTML = custom.map(t => renderToolItem(t)).join('');
+                        customLabel.style.display = 'block';
+                    } else {
+                        customList.innerHTML = '';
+                        customLabel.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                if (countBadge) countBadge.textContent = 'Gagal memuat tools';
+            }
+        }
+
+        function renderToolItem(tool) {
+            return `
+                <div class="tool-item">
+                    <div class="tool-item-info">
+                        <div class="tool-item-name">
+                            ${tool.name}
+                            <span class="tool-badge ${tool.source === 'built-in' ? 'builtin' : 'custom'}">
+                                ${tool.source === 'built-in' ? 'Built-in' : 'Custom'}
+                            </span>
+                        </div>
+                        <div class="tool-item-desc" title="${tool.description}">${tool.description}</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" ${tool.enabled ? 'checked' : ''} onchange="toggleTool('${tool.name}', this)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            `;
+        }
+
+        async function toggleTool(name, checkbox) {
+            checkbox.disabled = true;
+            try {
+                const res = await fetch(`/tools/${name}/toggle`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': gatewayToken }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(data.message, 'success');
+                    // Refresh count badge
+                    const res2 = await fetch('/tools', { headers: { 'X-API-Key': gatewayToken } });
+                    const data2 = await res2.json();
+                    const countBadge = document.getElementById('tools-count-badge');
+                    if (countBadge) countBadge.textContent = `${data2.enabled || 0} tool aktif dari total ${data2.total || 0}`;
+                } else {
+                    checkbox.checked = !checkbox.checked;
+                    showToast(data.detail || 'Gagal mengubah status tool', 'error');
+                }
+            } catch (e) {
+                checkbox.checked = !checkbox.checked;
+                showToast('Kesalahan koneksi', 'error');
+            } finally {
+                checkbox.disabled = false;
+            }
+        }
     </script>
 </body>
 </html>

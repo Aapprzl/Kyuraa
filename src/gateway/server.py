@@ -610,6 +610,78 @@ class GatewayServer:
                 "total": len(skills_data),
             }
 
+        # ─────────────────────────────────────────────
+        # TOOLS MANAGEMENT ENDPOINTS
+        # ─────────────────────────────────────────────
+
+        @self._app.get("/tools")
+        async def list_tools(request: Request):
+            self._verify_token(request)
+            agent = self._get_system_agent()
+            tools_detail = agent._tool_registry.list_tools_detail()
+            enabled_count = sum(1 for t in tools_detail if t["enabled"])
+            return {
+                "tools": tools_detail,
+                "total": len(tools_detail),
+                "enabled": enabled_count,
+            }
+
+        @self._app.post("/tools/{tool_name}/toggle")
+        async def toggle_tool(tool_name: str, request: Request):
+            self._verify_token(request)
+            system_agent = self._get_system_agent()
+            try:
+                new_state = system_agent._tool_registry.toggle(tool_name)
+            except KeyError:
+                raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' tidak ditemukan")
+
+            # Sinkronisasi state ke semua agent session yang sedang berjalan
+            for agent in self._agents.values():
+                try:
+                    agent._tool_registry._state[tool_name] = new_state
+                except Exception:
+                    pass
+
+            log("gateway", f"Tool '{tool_name}' toggled → {'aktif' if new_state else 'nonaktif'}")
+            return {
+                "success": True,
+                "tool": tool_name,
+                "enabled": new_state,
+                "message": f"Tool '{tool_name}' berhasil {'diaktifkan' if new_state else 'dinonaktifkan'}.",
+            }
+
+        @self._app.post("/tools/reload")
+        async def reload_tools(request: Request):
+            self._verify_token(request)
+            system_agent = self._get_system_agent()
+            result = system_agent._tool_registry.reload()
+
+            # Reload juga di semua agent session aktif
+            for agent in self._agents.values():
+                try:
+                    agent._tool_registry.reload()
+                except Exception:
+                    pass
+
+            log("gateway", f"Tools reloaded — {result['total']} total ({result['custom']} custom)")
+            return {
+                "success": True,
+                "message": f"✅ Tools berhasil direload. {result['custom']} custom tool terdeteksi.",
+                **result,
+            }
+
+        @self._app.get("/tools/template")
+        async def download_tool_template():
+            template_path = Path("workspace/tools/TOOL_TEMPLATE.py")
+            if not template_path.exists():
+                raise HTTPException(status_code=404, detail="TOOL_TEMPLATE.py tidak ditemukan")
+            return FileResponse(
+                template_path,
+                media_type="text/x-python",
+                filename="TOOL_TEMPLATE.py",
+                headers={"Content-Disposition": "attachment; filename=TOOL_TEMPLATE.py"},
+            )
+
     def _get_system_agent(self) -> Any:
         """Dapatkan agent __system__ khusus untuk endpoint non-chat.
         Agent ini di-cache tapi tidak menyimpan history chat untuk mencegah memory leak.

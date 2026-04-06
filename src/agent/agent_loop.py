@@ -155,7 +155,7 @@ class AgentLoop:
         references = self._load_references(needed_refs)
 
         system = self._prompt_builder.build_system_with_references(
-            self._skill_manager, references
+            self._skill_manager, references, self._tool_registry
         )
 
         messages = self._prompt_builder.build_messages(history, user_input)
@@ -205,7 +205,7 @@ class AgentLoop:
         references = self._load_references(needed_refs)
 
         system = self._prompt_builder.build_system_with_references(
-            self._skill_manager, references
+            self._skill_manager, references, self._tool_registry
         )
 
         messages = self._prompt_builder.build_messages(history, user_input)

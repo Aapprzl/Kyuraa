@@ -4,10 +4,10 @@ class PromptBuilder:
     def __init__(self):
         pass
 
-    def build_system_prompt(self, skill_manager) -> str:
+    def build_system_prompt(self, skill_manager, tool_registry=None) -> str:
         BASE_PROMPT = """Kamu adalah asisten AI pribadi yang
 cerdas dan bisa diajak ngobrol. Kamu memiliki beberapa
-skill khusus yang bisa diaktifkan sesuai kebutuhan.
+skill khusus dan tools yang bisa digunakan sesuai kebutuhan.
 
 ATURAN DASAR:
 - Jika user menyapa atau mengobrol biasa -> jawab natural
@@ -16,18 +16,40 @@ ATURAN DASAR:
 - Jika ada skill aktif -> ikuti instruksi skill tersebut
 - Jika tidak ada skill aktif -> jadilah asisten biasa
 
-"""
+## CARA MENGGUNAKAN TOOL:
+Jika kamu butuh data tambahan atau ingin melakukan aksi teknis, sisipkan tag berikut di dalam jawabanmu:
+[TOOL: nama_tool] param1="nilai" param2="nilai"
 
+Sistem akan otomatis mengeksekusi tool tersebut dan memberikan hasilnya kepadamu di giliran berikutnya.
+"""
+        
+        tools_section = self._build_tools_section(tool_registry)
         skill_prompt = skill_manager.get_system_prompt()
         skills_list = skill_manager.get_skills_summary()
 
+        full_prompt = BASE_PROMPT + tools_section
+        
         if skill_manager.is_active():
-            return BASE_PROMPT + skill_prompt
+            return full_prompt + "\n\n" + skill_prompt
         else:
-            return BASE_PROMPT + skills_list
+            return full_prompt + "\n\n" + skills_list
 
-    def build_system_with_references(self, skill_manager, references: dict[str, str]) -> str:
-        system = self.build_system_prompt(skill_manager)
+    def _build_tools_section(self, tool_registry) -> str:
+        if not tool_registry:
+            return ""
+            
+        active_tools = [t for t in tool_registry.list_tools_detail() if t.get("enabled", True)]
+        if not active_tools:
+            return ""
+            
+        parts = ["\n## TOOLS YANG TERSEDIA:\n"]
+        for t in active_tools:
+            parts.append(f"- {t['name']}: {t['description']}")
+            
+        return "\n".join(parts) + "\n"
+
+    def build_system_with_references(self, skill_manager, references: dict[str, str], tool_registry=None) -> str:
+        system = self.build_system_prompt(skill_manager, tool_registry)
         if not references:
             return system
 
