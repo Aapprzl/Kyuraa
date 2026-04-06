@@ -8,6 +8,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('kyuraa_theme') || 'auto';
+            if (savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
     <style>
         :root {
             --bg-base: #F9F7F4;
@@ -25,6 +33,30 @@
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
             --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
             --user-bubble: #D97757;
+            --overlay-bg: rgba(26, 24, 20, 0.45);
+            --danger-bg: #ffebe9;
+            --danger-text: #d73a49;
+        }
+
+        [data-theme='dark'] {
+            --bg-base: #242424;
+            --bg-surface: #2c2c2c;
+            --bg-sidebar: #202020;
+            --bg-hover: #383838;
+            --border: #3e3e3e;
+            --border-strong: #555555;
+            --accent: #D97757;
+            --accent-hover: #c4633e;
+            --accent-light: #4A2B20;
+            --text-primary: #e5e5e5;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --user-bubble: #D97757;
+            --overlay-bg: rgba(0, 0, 0, 0.7);
+            --danger-bg: #3d1b1e;
+            --danger-text: #ff6b6b;
         }
 
         * {
@@ -361,31 +393,6 @@
             margin-bottom: 24px;
         }
 
-        #example-prompts {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-            max-width: 500px;
-        }
-
-        .example-prompt {
-            padding: 10px 16px;
-            background: var(--bg-surface);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .example-prompt:hover {
-            background: var(--accent-light);
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-
         /* Messages Container */
         #messages-container {
             flex: 1;
@@ -540,13 +547,14 @@
             align-items: center;
             gap: 10px;
             font-size: 10px;
-            color: rgba(0,0,0,0.35);
+            color: var(--text-muted);
             pointer-events: none;
             user-select: none;
+            opacity: 0.8;
         }
 
         .message-user .bubble-footer {
-            color: rgba(255,255,255,0.6);
+            color: rgba(255,255,255,0.7);
         }
 
         .bubble-stats {
@@ -669,10 +677,12 @@
         }
 
         /* Settings Panel */
-        #settings-overlay {
+        #settings-overlay, #disconnect-overlay, #token-modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.4);
+            background: var(--overlay-bg);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             display: flex;
             justify-content: flex-end;
             z-index: 100;
@@ -776,6 +786,36 @@
             color: var(--text-muted);
         }
 
+        .pw-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .pw-toggle-btn {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: color 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pw-toggle-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .settings-field input.pw-input {
+            padding-right: 40px;
+        }
+
         #save-settings-btn, .save-provider-btn {
             width: 100%;
             padding: 14px;
@@ -791,6 +831,145 @@
 
         #save-settings-btn:hover, .save-provider-btn:hover {
             background: var(--accent-hover);
+        }
+
+        /* ============================================
+           THEME SELECTOR
+        ============================================ */
+        .theme-selector {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            margin-top: 12px;
+            justify-content: flex-start;
+        }
+
+        .theme-card-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .theme-card {
+            width: 100px;
+            height: 70px;
+            border-radius: 12px;
+            border: 2px solid transparent;            
+            background-color: var(--bg-surface);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .theme-card-wrapper:hover .theme-card {
+            border-color: var(--border-strong);
+        }
+
+        .theme-card-wrapper.active .theme-card {
+            border-color: #3b82f6;
+        }
+        
+        .theme-card-wrapper.active .theme-label {
+            color: var(--text-primary);
+        }
+
+        .theme-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        /* Mockup visuals for cards */
+        .theme-mockup-light {
+            width: 100%;
+            height: 100%;
+            background: #F9F7F4;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+        }
+        .theme-mockup-light-header {
+            width: 35%;
+            height: 10px;
+            background: #E8E4DF;
+            border-radius: 10px;
+            margin-left: auto;
+            margin-bottom: 8px;
+        }
+        .theme-mockup-light-body {
+            flex: 1;
+            background: #FFFFFF;
+            border-radius: 6px;
+            border: 1px solid #E2DDD8;
+        }
+
+        .theme-mockup-dark {
+            width: 100%;
+            height: 100%;
+            background: #202020;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+        }
+        .theme-mockup-dark-header {
+            width: 35%;
+            height: 10px;
+            background: #121212;
+            border-radius: 10px;
+            margin-left: auto;
+            margin-bottom: 8px;
+        }
+        .theme-mockup-dark-body {
+            flex: 1;
+            background: #2c2c2c;
+            border-radius: 6px;
+            border: 1px solid #3e3e3e;
+        }
+
+        .theme-mockup-auto {
+            width: 100%;
+            height: 100%;
+            display: flex;
+        }
+        .theme-mockup-auto-left {
+            flex: 1;
+            background: #F9F7F4;
+            padding: 8px 4px 8px 8px;
+            display: flex;
+            flex-direction: column;
+        }
+        .theme-mockup-auto-right {
+            flex: 1;
+            background: #202020;
+            padding: 8px 8px 8px 4px;
+            display: flex;
+            flex-direction: column;
+        }
+        .theme-mockup-auto-header {
+            width: 70%;
+            height: 10px;
+            background: #121212;
+            margin-left: auto;
+            border-radius: 10px;
+            margin-bottom: 8px;
+        }
+        .theme-mockup-auto-body-left {
+            flex: 1;
+            background: #FFFFFF;
+            border-radius: 6px 0 0 6px;
+            border: 1px solid #E2DDD8;
+            border-right: none;
+        }
+        .theme-mockup-auto-body-right {
+            flex: 1;
+            background: #2c2c2c;
+            border-radius: 0 6px 6px 0;
+            border: 1px solid #3e3e3e;
+            border-left: none;
         }
 
         /* Hidden utility */
@@ -818,7 +997,7 @@
         #token-modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(26, 24, 20, 0.45);
+            background: var(--overlay-bg);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
             display: flex;
@@ -1008,7 +1187,7 @@
         #disconnect-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(26, 24, 20, 0.45);
+            background: var(--overlay-bg);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
             display: flex;
@@ -1038,8 +1217,8 @@
             width: 52px;
             height: 52px;
             border-radius: 14px;
-            background: #ffebe9;
-            color: #d73a49;
+            background: var(--danger-bg);
+            color: var(--danger-text);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1108,6 +1287,248 @@
         .disconnect-actions .btn-secondary:hover {
             background: var(--bg-hover);
         }
+
+        /* Stats Bar & Formatting */
+        .stats-bar {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: monospace;
+            display: flex;
+            align-items: center;
+        }
+        .stat-divider { margin: 0 6px; opacity: 0.5; }
+        .stat-total { color: var(--accent); font-weight: 600; }
+        .arabic-text { font-family: 'Noto Naskh Arabic', serif; direction: rtl; unicode-bidi: embed; display: inline-block; }
+        .code-block {
+            background: var(--bg-sidebar);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 8px 0;
+            border: 1px solid var(--border);
+        }
+
+        /* Skills settings UI */
+        .no-skills {
+            padding: 16px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        .skills-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .skills-table th {
+            text-align: left;
+            padding: 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+        }
+        .skills-table td {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .skills-table tr.active td {
+            background: var(--accent-light);
+        }
+        .skill-actions {
+            margin-top: 12px;
+        }
+        .settings-secondary-btn {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .settings-secondary-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        /* Settings stats */
+        #usage-stats {
+            background: var(--bg-sidebar);
+            padding: 16px;
+            border-radius: 12px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            padding: 6px 0;
+            color: var(--text-secondary);
+        }
+        .stat-row span:last-child {
+            font-family: monospace;
+            color: var(--text-primary);
+        }
+
+        /* Providers and Skills extra UI */
+        .settings-section.active-provider {
+            border: 2px solid var(--accent);
+            padding: 16px;
+            border-radius: 12px;
+            background: var(--accent-light);
+        }
+        .settings-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 24px 0;
+        }
+        .skill-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            background: var(--bg-sidebar);
+            border: 1px solid transparent;
+        }
+        .skill-item.active {
+            background: var(--accent-light);
+            border-color: var(--accent);
+        }
+        .skill-item .skill-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        /* Confirm Modal */
+        #confirm-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #confirm-modal.hidden {
+            display: none;
+        }
+        .confirm-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+        }
+        .confirm-dialog {
+            position: relative;
+            background: var(--bg-surface);
+            padding: 24px;
+            border-radius: 16px;
+            max-width: 320px;
+            box-shadow: var(--shadow-md);
+            animation: scaleIn 0.2s ease-out;
+        }
+        .confirm-dialog h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .confirm-dialog p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+        .confirm-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        .confirm-actions button {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        #confirm-cancel {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        #confirm-cancel:hover {
+            background: var(--bg-hover);
+        }
+        #confirm-ok {
+            background: var(--accent);
+            border: none;
+            color: white;
+        }
+        #confirm-ok:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Sessions & Toasts */
+        .no-sessions {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        .session-item { position: relative; }
+        .session-delete {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        .session-item:hover .session-delete { opacity: 0.7; }
+        .session-delete:hover { 
+            opacity: 1 !important;
+            background: var(--danger-bg);
+            color: var(--danger-text);
+        }
+        .session-group-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px 12px 6px;
+            margin-top: 8px;
+        }
+        .session-group-label:first-child {
+            margin-top: 0;
+            padding-top: 4px;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            z-index: 200;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .toast-info { background: #6B6560; color: white; }
+        .toast-success { background: #27ae60; color: white; }
+        .toast-error { background: #e74c3c; color: white; }
     </style>
 </head>
 <body>
@@ -1151,11 +1572,6 @@
             <div id='welcome-screen'>
                 <h1>Kyuraa</h1>
                 <p>Asisten AI pribadi dengan berbagai skill akademik.</p>
-                <div id='example-prompts'>
-                    <button class='example-prompt' data-prompt='Aktifkan skill penerjemah Arab'>Aktifkan skill penerjemah Arab</button>
-                    <button class='example-prompt' data-prompt='Bantu analisis data R&D 4D'>Bantu analisis data R&D 4D</button>
-                    <button class='example-prompt' data-prompt='Ngobrol santai'>Ngobrol santai</button>
-                </div>
             </div>
 
             <!-- Messages container -->
@@ -1732,7 +2148,9 @@
                         <div class="session-preview">
                             ${s.updated_at ? formatRelativeDate(s.updated_at) : ''} · ${s.message_count || 0} pesan
                         </div>
-                        <button class="session-delete" onclick="event.stopPropagation(); deleteSession('${s.session_id}')">🗑</button>
+                        <button class="session-delete" onclick="event.stopPropagation(); deleteSession('${s.session_id}')" title="Hapus sesi">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6.5m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2.5M10 11v6m4-6v6"/></svg>
+                        </button>
                     </div>
                 `).join('');
             });
@@ -2112,26 +2530,26 @@
             const text = messageInput.value.trim();
             if (!text) return;
 
-            // If no current session, create one first
             if (!currentSessionId) {
-                const newId = generateId();
-                currentSessionId = newId;
+                currentSessionId = generateId();
+                connectWebSocket();
+            }
 
-                // Add to local sessions array
+            // Ensure the session is visibly added to the sidebar if not already present
+            if (!sessions.find(s => s.session_id === currentSessionId)) {
                 sessions.unshift({
-                    session_id: newId,
+                    session_id: currentSessionId,
                     name: 'Sesi baru',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                     message_count: 0
                 });
                 renderSessions();
+            }
 
-                // Connect WebSocket
-                connectWebSocket();
-
-                // Wait for WS to be connected
-                for (let i = 0; i < 10; i++) {
+            // Wait for WS to be connected (either newly created or reconnecting)
+            if (!isConnected) {
+                for (let i = 0; i < 15; i++) {
                     await new Promise(resolve => setTimeout(resolve, 100));
                     if (isConnected) break;
                 }
@@ -2190,6 +2608,47 @@
 
         function renderSettingsContent() {
             settingsContent.innerHTML = `
+                <div class="settings-section">
+                    <h3>Tampilan</h3>
+                    <div class="theme-selector" id="theme-selector">
+                        <div class="theme-card-wrapper" data-value="light" onclick="setAppTheme('light')">
+                            <div class="theme-card">
+                                <div class="theme-mockup-light">
+                                    <div class="theme-mockup-light-header"></div>
+                                    <div class="theme-mockup-light-body"></div>
+                                </div>
+                            </div>
+                            <span class="theme-label">Ringan</span>
+                        </div>
+                        <div class="theme-card-wrapper" data-value="auto" onclick="setAppTheme('auto')">
+                            <div class="theme-card">
+                                <div class="theme-mockup-auto">
+                                    <div class="theme-mockup-auto-left">
+                                        <div style="height: 10px; margin-bottom: 8px;"></div>
+                                        <div class="theme-mockup-auto-body-left"></div>
+                                    </div>
+                                    <div class="theme-mockup-auto-right">
+                                        <div class="theme-mockup-auto-header"></div>
+                                        <div class="theme-mockup-auto-body-right"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="theme-label">Otomatis</span>
+                        </div>
+                        <div class="theme-card-wrapper" data-value="dark" onclick="setAppTheme('dark')">
+                            <div class="theme-card">
+                                <div class="theme-mockup-dark">
+                                    <div class="theme-mockup-dark-header"></div>
+                                    <div class="theme-mockup-dark-body"></div>
+                                </div>
+                            </div>
+                            <span class="theme-label">Gelap</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-divider"></div>
+
                 <div id="provider-openrouter" class="settings-section">
                     <h3>Konfigurasi OpenRouter <span class="active-indicator hidden">Aktif</span></h3>
                     <div class="settings-field">
@@ -2198,7 +2657,10 @@
                     </div>
                     <div class="settings-field">
                         <label>OpenRouter API Key</label>
-                        <input type="password" id="setting-or-api-key" placeholder="Masukkan API Key...">
+                        <div class="pw-input-wrapper">
+                            <input type="password" id="setting-or-api-key" class="pw-input" placeholder="Masukkan API Key...">
+                            <button type="button" class="pw-toggle-btn" title="Tampilkan/Sembunyikan" onclick="const i=document.getElementById('setting-or-api-key'); if(i.type==='password'){i.type='text';this.textContent='🙈';}else{i.type='password';this.textContent='👁';}">👁</button>
+                        </div>
                     </div>
                     <button class="save-provider-btn" data-provider="openrouter">Simpan & Gunakan OpenRouter</button>
                 </div>
@@ -2213,7 +2675,10 @@
                     </div>
                     <div class="settings-field">
                         <label>Google API Key</label>
-                        <input type="password" id="setting-google-api-key" placeholder="Masukkan API Key...">
+                        <div class="pw-input-wrapper">
+                            <input type="password" id="setting-google-api-key" class="pw-input" placeholder="Masukkan API Key...">
+                            <button type="button" class="pw-toggle-btn" title="Tampilkan/Sembunyikan" onclick="const i=document.getElementById('setting-google-api-key'); if(i.type==='password'){i.type='text';this.textContent='🙈';}else{i.type='password';this.textContent='👁';}">👁</button>
+                        </div>
                     </div>
                     <button class="save-provider-btn" data-provider="google">Simpan & Gunakan Google AI</button>
                 </div>
@@ -2265,6 +2730,14 @@
                     activeCard.querySelector('.active-indicator').classList.remove('hidden');
                 }
             });
+
+            // Highlight active theme
+            const activeTheme = localStorage.getItem('kyuraa_theme') || 'auto';
+            document.querySelectorAll('.theme-card-wrapper').forEach(card => {
+                if(card.dataset.value === activeTheme) {
+                    card.classList.add('active');
+                }
+            });
             
             // Load stats
             fetch('/stats', {
@@ -2295,7 +2768,6 @@
                                     <th>Nama</th>
                                     <th>Ver</th>
                                     <th>Ref</th>
-                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2304,7 +2776,6 @@
                                         <td>${s.name}</td>
                                         <td>${s.version || '1.0'}</td>
                                         <td>${s.references_count || 0}</td>
-                                        <td>${s.name === activeSkill ? 'Aktif' : '-'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -2431,15 +2902,6 @@
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
 
-        // Example prompt clicks
-        document.querySelectorAll('.example-prompt').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const prompt = btn.dataset.prompt;
-                messageInput.value = prompt;
-                messageInput.focus();
-                sendMessage();
-            });
-        });
 
         // ============================================
         // INITIALIZE
@@ -2456,387 +2918,38 @@
         }
 
         init();
-    </script>
-    
-    <style>
-        /* Additional styles for JS-generated elements */
-        .no-sessions {
-            padding: 20px;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-        
-        .session-item {
-            position: relative;
-        }
-        
-        .session-delete {
-            position: absolute;
-            right: 8px;
-            top: 50%;
-            transform: translateY(-50%);
-            opacity: 0;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 12px;
-            padding: 4px;
-            transition: opacity 0.2s;
-        }
-        
-        .session-item:hover .session-delete {
-            opacity: 1;
-        }
-        
-        .session-delete:hover {
-            color: #e74c3c;
-        }
-        
-        .session-group-label {
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 12px 12px 6px;
-            margin-top: 8px;
-        }
-        
-        .session-group-label:first-child {
-            margin-top: 0;
-            padding-top: 4px;
-        }
-        
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 13px;
-            z-index: 200;
-            animation: fadeIn 0.3s ease-out;
-        }
-        
-        .toast-info { background: #6B6560; color: white; }
-        .toast-success { background: #27ae60; color: white; }
-        .toast-error { background: #e74c3c; color: white; }
-        
-        /* Confirm Modal */
-        #confirm-modal {
-            position: fixed;
-            inset: 0;
-            z-index: 150;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        #confirm-modal.hidden {
-            display: none;
-        }
-        
-        .confirm-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(0,0,0,0.4);
-        }
-        
-        .confirm-dialog {
-            position: relative;
-            background: var(--bg-surface);
-            padding: 24px;
-            border-radius: 16px;
-            max-width: 320px;
-            box-shadow: var(--shadow-md);
-            animation: fadeIn 0.2s ease-out;
-        }
-        
-        .confirm-dialog h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        
-        .confirm-dialog p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-bottom: 20px;
-        }
-        
-        .confirm-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-        }
-        
-        .confirm-actions button {
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        
-        #confirm-cancel {
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-        }
-        
-        #confirm-cancel:hover {
-            background: var(--bg-hover);
-        }
-        
-        #confirm-ok {
-            background: var(--accent);
-            border: none;
-            color: white;
-        }
-        
-        #confirm-ok:hover {
-            background: var(--accent-hover);
-        }
-        
-        /* Settings stats */
-        #usage-stats {
-            background: var(--bg-sidebar);
-            padding: 16px;
-            border-radius: 12px;
-        }
-        
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-            padding: 6px 0;
-            color: var(--text-secondary);
-        }
-        
-        .stat-row span:last-child {
-            font-family: monospace;
-            color: var(--text-primary);
-        }
 
-        /* Active provider styling */
-        .settings-section.active-provider {
-            border: 2px solid var(--accent);
-            padding: 16px;
-            border-radius: 12px;
-            background: var(--accent-light);
+        // ============================================
+        // THEME MANAGEMENT
+        // ============================================
+        function setAppTheme(theme) {
+            localStorage.setItem('kyuraa_theme', theme);
+            let isDark = false;
+            if (theme === 'dark') {
+                isDark = true;
+            } else if (theme === 'auto') {
+                isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }
+            if (isDark) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+            
+            // Update active state in UI if settings modal is open
+            document.querySelectorAll('.theme-card-wrapper').forEach(card => {
+                card.classList.toggle('active', card.dataset.value === theme);
+            });
         }
         
-        .settings-divider {
-            height: 1px;
-            background: var(--border);
-            margin: 24px 0;
-        }
-        
-        /* Skills in settings */
-        .skill-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 12px;
-            border-radius: 8px;
-            margin-bottom: 4px;
-            background: var(--bg-sidebar);
-        }
-        
-        .skill-item.active {
-            background: var(--accent-light);
-            border: 1px solid var(--accent);
-        }
-        
-        .skill-item .skill-name {
-            font-size: 13px;
-            font-weight: 500;
-        }
-        
-        
-        .no-skills {
-            padding: 16px;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-        
-        /* Skills table in settings */
-        .skills-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-        
-        .skills-table th {
-            text-align: left;
-            padding: 8px;
-            color: var(--text-muted);
-            font-weight: 500;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .skills-table td {
-            padding: 8px;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .skills-table tr.active td {
-            background: var(--accent-light);
-        }
-        
-        .skill-actions {
-            margin-top: 12px;
-        }
-        
-        .settings-secondary-btn {
-            width: 100%;
-            padding: 10px;
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 12px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        
-        .settings-secondary-btn:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-        
-        /* Disconnect Overlay */
-        #disconnect-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(249, 247, 244, 0.95);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 200;
-        }
-        
-        #disconnect-overlay.hidden {
-            display: none;
-        }
-        
-        .disconnect-content {
-            text-align: center;
-            animation: fadeIn 0.3s ease-out;
-        }
-        
-        .disconnect-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 20px;
-            border-radius: 50%;
-            background: #fee;
-            border: 2px solid #fcc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
-        }
-        
-        .disconnect-content h2 {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-        }
-        
-        .disconnect-content p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-bottom: 16px;
-        }
-        
-        #reconnect-status {
-            font-size: 14px;
-            color: var(--accent);
-            margin-bottom: 20px;
-            font-family: monospace;
-        }
-        
-        .disconnect-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-        }
-        
-        .disconnect-actions button {
-            padding: 12px 24px;
-            border-radius: 24px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        
-        #reconnect-btn {
-            background: var(--accent);
-            border: none;
-            color: white;
-        }
-        
-        #reconnect-btn:hover {
-            background: var(--accent-hover);
-        }
-        
-        #reload-btn {
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-        }
-        
-        #reload-btn:hover {
-            background: var(--bg-hover);
-        }
-        
-        /* Stats Bar */
-        #input-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .stats-bar {
-            font-size: 11px;
-            color: var(--text-muted);
-            font-family: monospace;
-        }
-        
-        .stat-divider {
-            margin: 0 6px;
-            opacity: 0.5;
-        }
-        
-        .stat-total {
-            color: var(--accent);
-            font-weight: 600;
-        }
-        
-        /* Arabic text rendering */
-        .arabic-text {
-            font-family: 'Noto Naskh Arabic', serif;
-            direction: rtl;
-            unicode-bidi: embed;
-            display: inline-block;
-        }
-        
-        .code-block {
-            background: var(--bg-sidebar);
-            padding: 12px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 13px;
-            overflow-x: auto;
-            margin: 8px 0;
-        }
-    </style>
+        // Listen for OS theme changes for auto mode
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            const savedTheme = localStorage.getItem('kyuraa_theme') || 'auto';
+            if (savedTheme === 'auto') {
+                if (e.matches) document.documentElement.setAttribute('data-theme', 'dark');
+                else document.documentElement.removeAttribute('data-theme');
+            }
+        });
+    </script>
 </body>
 </html>
