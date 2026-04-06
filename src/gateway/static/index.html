@@ -1683,6 +1683,7 @@
         // Auto-reconnect state
         let reconnectAttempts = 0;
         let reconnectTimer = null;
+        let disconnectOverlayTimer = null;
 
         // Security Token — support ?token=xxx URL param for easy injection
         (function() {
@@ -1997,6 +1998,11 @@
                     clearTimeout(reconnectTimer);
                     reconnectTimer = null;
                 }
+                // Cancel pending disconnect overlay timer
+                if (disconnectOverlayTimer) {
+                    clearTimeout(disconnectOverlayTimer);
+                    disconnectOverlayTimer = null;
+                }
                 updateConnectionStatus('connected');
                 hideDisconnectOverlay();
                 fetchSkillStatus();
@@ -2033,7 +2039,18 @@
                             }
                         }, delay);
                     }
-                    if (!isIntentionalClose) showDisconnectOverlay();
+                    // Debounced disconnect overlay — tunda 500ms agar WS baru sempat tersambung
+                    if (!isIntentionalClose) {
+                        if (disconnectOverlayTimer) {
+                            clearTimeout(disconnectOverlayTimer);
+                        }
+                        disconnectOverlayTimer = setTimeout(() => {
+                            disconnectOverlayTimer = null;
+                            if (!isConnected) {
+                                showDisconnectOverlay();
+                            }
+                        }, 500);
+                    }
                 }
                 updateConnectionStatus('disconnected');
                 isIntentionalClose = false;
@@ -2046,6 +2063,10 @@
             if (reconnectTimer) {
                 clearTimeout(reconnectTimer);
                 reconnectTimer = null;
+            }
+            if (disconnectOverlayTimer) {
+                clearTimeout(disconnectOverlayTimer);
+                disconnectOverlayTimer = null;
             }
             if (ws) {
                 ws.close();

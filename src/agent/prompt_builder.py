@@ -2,12 +2,7 @@
 
 class PromptBuilder:
     def __init__(self):
-        self._reference_keywords = {
-            "01-nahwu.md": ["nahwu", "i'rab", "gramatikal", "sintaksis", "irab", "kalimat", "fi'il", "isim", "harakat", "nawasikh", "idhafah"],
-            "02-sharaf.md": ["sharaf", "wazan", "morfologi", "imbuhan", "fi'il madhi", "fi'il mudhari", "mashdar", "isim fa'il", "isim maf'ul"],
-            "03-balaghah.md": ["balaghah", "retorika", "qur'ani", "sastra arab", "uslub", "majaz", "kinayah"],
-            "04-special-cases.md": ["bilangan", "angka", "idiom", "kasus khusus"],
-        }
+        pass
 
     def build_system_prompt(self, skill_manager) -> str:
         BASE_PROMPT = """Kamu adalah asisten AI pribadi yang
@@ -81,11 +76,15 @@ ATURAN DASAR:
 
         needed = list(always_load)
 
-        user_lower = user_input.lower()
-        for ref_name, keywords in self._reference_keywords.items():
-            if any(kw in user_lower for kw in keywords):
-                if ref_name not in needed and ref_name in on_demand:
-                    needed.append(ref_name)
+        GREETINGS = ["halo", "hai", "hi", "oke", "ok", "thanks",
+                     "terima kasih", "lanjut", "skip", "ya", "tidak"]
+        user_lower = user_input.lower().strip()
+        is_greeting = user_lower in GREETINGS or len(user_input) < 20
+
+        if not is_greeting:
+            for ref in on_demand:
+                if ref not in needed:
+                    needed.append(ref)
 
         return needed
 
