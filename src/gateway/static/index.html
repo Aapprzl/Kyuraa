@@ -811,6 +811,303 @@
                 transform: translateX(-100%);
             }
         }
+
+        /* ============================================
+           TOKEN MODAL
+        ============================================ */
+        #token-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 24, 20, 0.45);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        #token-modal-overlay.hidden {
+            display: none;
+        }
+
+        #token-modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            width: 380px;
+            max-width: calc(100vw - 32px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08);
+            animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        #token-modal-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: var(--accent-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        #token-modal h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            letter-spacing: -0.3px;
+        }
+
+        #token-modal p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        #token-modal p code {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            background: var(--bg-sidebar);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--accent);
+        }
+
+        #token-input-wrapper {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        #token-input-wrapper .token-prefix {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 15px;
+            color: var(--text-muted);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        #token-input {
+            width: 100%;
+            padding: 12px 44px 12px 40px;
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            letter-spacing: 0.08em;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+
+        #token-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.12);
+        }
+
+        #token-input.shake {
+            animation: tokenShake 0.4s ease;
+        }
+
+        @keyframes tokenShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
+        #token-toggle-visibility {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            color: var(--text-muted);
+            padding: 4px;
+            border-radius: 6px;
+            transition: color 0.15s;
+            line-height: 1;
+        }
+
+        #token-toggle-visibility:hover {
+            color: var(--text-secondary);
+        }
+
+        #token-error {
+            font-size: 12px;
+            color: #e74c3c;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-height: 18px;
+            transition: opacity 0.2s;
+        }
+
+        #token-error.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #token-submit {
+            width: 100%;
+            padding: 13px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+
+        #token-submit:hover {
+            background: var(--accent-hover);
+        }
+
+        #token-submit:active {
+            transform: scale(0.98);
+        }
+
+        #token-submit:disabled {
+            background: var(--border-strong);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #token-hint {
+            margin-top: 14px;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        /* ============================================
+           DISCONNECT MODAL
+        ============================================ */
+        #disconnect-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 24, 20, 0.45);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        #disconnect-overlay.hidden {
+            display: none;
+        }
+
+        .disconnect-modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            width: 380px;
+            max-width: calc(100vw - 32px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08);
+            animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            text-align: center;
+        }
+
+        .disconnect-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: #ffebe9;
+            color: #d73a49;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin: 0 auto 20px;
+        }
+
+        .disconnect-modal h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            letter-spacing: -0.3px;
+        }
+
+        .disconnect-modal p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .reconnect-status-box {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: 10px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .disconnect-actions {
+            display: flex;
+            gap: 12px;
+            flex-direction: column;
+        }
+
+        .disconnect-actions button {
+            width: 100%;
+            padding: 13px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .disconnect-actions .btn-primary {
+            background: var(--accent);
+            color: white;
+            border: none;
+        }
+
+        .disconnect-actions .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .disconnect-actions .btn-secondary {
+            background: var(--bg-base);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .disconnect-actions .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
     </style>
 </head>
 <body>
@@ -911,19 +1208,42 @@
         </div>
     </div>
 
+    <!-- Token Modal -->
+    <div id='token-modal-overlay' class='hidden'>
+        <div id='token-modal' role='dialog' aria-modal='true' aria-labelledby='token-modal-title'>
+            <div id='token-modal-icon'>🔑</div>
+            <h2 id='token-modal-title'>Token Akses Diperlukan</h2>
+            <p>Masukkan token gateway untuk terhubung ke Kyuraa. Token tampil di <code>console terminal</code> saat server pertama kali dijalankan.</p>
+            <div id='token-input-wrapper'>
+                <span class='token-prefix'>🔒</span>
+                <input
+                    id='token-input'
+                    type='password'
+                    placeholder='Paste token di sini...'
+                    autocomplete='off'
+                    spellcheck='false'
+                />
+                <button id='token-toggle-visibility' type='button' title='Tampilkan/Sembunyikan token'>👁</button>
+            </div>
+            <div id='token-error' class='hidden'></div>
+            <button id='token-submit'>Hubungkan ke Kyuraa</button>
+            <p id='token-hint'>Token disimpan di localStorage browser ini.<br>Restart server akan menghasilkan token baru.</p>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id='toast-container'></div>
 
     <!-- Disconnect Overlay -->
     <div id='disconnect-overlay' class='hidden'>
-        <div class='disconnect-content'>
-            <div class='disconnect-icon'>⚡</div>
+        <div class='disconnect-modal' role='dialog' aria-modal='true'>
+            <div class='disconnect-icon'>⚠️</div>
             <h2>Koneksi Terputus</h2>
-            <p>Server tidak merespons. Memeriksa koneksi...</p>
-            <div id='reconnect-status'>Mencoba menghubungkan...</div>
+            <p>Server Kyuraa tidak merespons atau sedang offline.</p>
+            <div id='reconnect-status' class='reconnect-status-box'>Menunggu percobaan ulang...</div>
             <div class='disconnect-actions'>
-                <button id='reconnect-btn'>🔄 Sambung Ulang</button>
-                <button id='reload-btn'>🔁 Reload Halaman</button>
+                <button id='reconnect-btn' class='btn-primary'>Sambung Ulang</button>
+                <button id='reload-btn' class='btn-secondary'>Reload Halaman</button>
             </div>
         </div>
     </div>
@@ -944,6 +1264,22 @@
         let sessionStats = { requests: 0, inputTokens: 0, outputTokens: 0 };
         let typingStartTime = 0;
         let pendingReplace = null;
+        // Auto-reconnect state
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
+
+        // Security Token — support ?token=xxx URL param for easy injection
+        (function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = urlParams.get('token');
+            if (urlToken) {
+                localStorage.setItem('kyuraa_gateway_token', urlToken);
+                // Remove token from URL bar without reloading
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+        })();
+        let gatewayToken = localStorage.getItem('kyuraa_gateway_token') || '';
 
         // ============================================
         // DOM ELEMENTS
@@ -974,6 +1310,79 @@
             toast.textContent = message;
             toastContainer.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
+            
+            if (message.includes('401') || message.includes('Token tidak valid')) {
+                askForToken();
+            }
+        }
+
+        // ============================================
+        // TOKEN MODAL
+        // ============================================
+        (function initTokenModal() {
+            const overlay  = document.getElementById('token-modal-overlay');
+            const input    = document.getElementById('token-input');
+            const submitBtn = document.getElementById('token-submit');
+            const toggleBtn = document.getElementById('token-toggle-visibility');
+            const errorEl  = document.getElementById('token-error');
+
+            function showError(msg) {
+                errorEl.textContent = '⚠ ' + msg;
+                errorEl.classList.remove('hidden');
+                input.classList.add('shake');
+                input.addEventListener('animationend', () => input.classList.remove('shake'), { once: true });
+            }
+
+            function clearError() {
+                errorEl.classList.add('hidden');
+            }
+
+            toggleBtn.addEventListener('click', () => {
+                const isHidden = input.type === 'password';
+                input.type = isHidden ? 'text' : 'password';
+                toggleBtn.textContent = isHidden ? '🙈' : '👁';
+            });
+
+            submitBtn.addEventListener('click', submitToken);
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submitToken();
+                if (e.key !== 'Tab') clearError();
+            });
+
+            // Dismiss on overlay click (outside modal card)
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    input.focus();
+                    showError('Token diperlukan untuk melanjutkan.');
+                }
+            });
+
+            function submitToken() {
+                const token = input.value.trim();
+                if (!token) {
+                    showError('Token tidak boleh kosong.');
+                    return;
+                }
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Menghubungkan...';
+                localStorage.setItem('kyuraa_gateway_token', token);
+                gatewayToken = token;
+                location.reload();
+            }
+
+            window._showTokenModal = function() {
+                overlay.classList.remove('hidden');
+                setTimeout(() => input.focus(), 100);
+            };
+
+            window._hideTokenModal = function() {
+                overlay.classList.add('hidden');
+            };
+        })();
+
+        function askForToken() {
+            window._showTokenModal();
         }
 
         function formatRelativeDate(dateStr) {
@@ -1145,58 +1554,83 @@
         }
 
         function connectWebSocket(sessionId) {
-            if (!sessionId) {
-                console.error('connectWebSocket called with invalid sessionId:', sessionId);
+            const sid = sessionId || currentSessionId;
+            if (!sid) {
+                console.error('connectWebSocket called with invalid sessionId:', sid);
                 return;
             }
-            
+            sessionId = sid; // normalize
+
             isIntentionalClose = false;
             updateConnectionStatus('connecting');
-            
+
             if (ws) {
                 ws.close();
                 ws = null;
             }
-            
+
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${location.host}/ws/${sessionId}`;
-            console.log('Connecting to:', wsUrl);
-            
+            const wsUrl = `${protocol}//${location.host}/ws/${sessionId}?token=${gatewayToken}`;
+
             ws = new WebSocket(wsUrl);
-            
+
             ws.onopen = () => {
-                console.log('WS Connected successfully');
                 isConnected = true;
+                reconnectAttempts = 0;  // Reset backoff saat berhasil
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
                 updateConnectionStatus('connected');
                 hideDisconnectOverlay();
                 fetchSkillStatus();
             };
-            
+
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 handleWsMessage(data);
             };
-            
+
             ws.onerror = (event) => {
                 console.error('WS Error:', event);
                 isConnected = false;
                 updateConnectionStatus('disconnected');
             };
-            
-            ws.onclose = (event) => {
-                console.log('WS Closed:', event.code, event.reason || '');
+
+            ws.onclose = (e) => {
                 isConnected = false;
-                updateConnectionStatus('disconnected');
+                console.log(`WebSocket Disconnected: ${e.code} ${e.reason}`);
                 
-                if (!isIntentionalClose) {
-                    showDisconnectOverlay();
+                if (e.code === 4001) {
+                    showToast('⌛ Token tidak valid atau kadaluarsa.', 'error');
+                    localStorage.removeItem('kyuraa_gateway_token');
+                    askForToken();
+                } else {
+                    const statusEl = document.getElementById('reconnect-status');
+                    if (statusEl) {
+                        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                        statusEl.textContent = `Mencoba menyambung dalam ${Math.round(delay/1000)}s...`;
+                        reconnectTimer = setTimeout(() => {
+                            reconnectTimer = null;
+                            if (currentSessionId && !isConnected && !isIntentionalClose) {
+                                connectWebSocket(currentSessionId);
+                            }
+                        }, delay);
+                    }
+                    if (!isIntentionalClose) showDisconnectOverlay();
                 }
+                updateConnectionStatus('disconnected');
                 isIntentionalClose = false;
             };
         }
 
         function disconnectWebSocket() {
             isIntentionalClose = true;
+            reconnectAttempts = 0;  // Reset backoff
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
             if (ws) {
                 ws.close();
                 ws = null;
@@ -1213,7 +1647,7 @@
         }
 
         function manualReconnect() {
-            if (currentSessionId) connectWebSocket(currentSessionId);
+            if (currentSessionId) connectWebSocket();
         }
 
         document.getElementById('reconnect-btn').addEventListener('click', manualReconnect);
@@ -1237,7 +1671,13 @@
         // ============================================
         async function loadSessions() {
             try {
-                const res = await fetch('/sessions');
+                const res = await fetch('/sessions', {
+                    headers: { 'X-API-Key': gatewayToken }
+                });
+                if (res.status === 401) {
+                    askForToken();
+                    return;
+                }
                 const data = await res.json();
                 // Filter out __system__ session
                 sessions = (data.sessions || []).filter(s => s.session_id !== '__system__');
@@ -1306,38 +1746,31 @@
         }
 
         async function selectSession(sessionId) {
-            // Disconnect any existing WS first
-            disconnectWebSocket();
-            
             currentSessionId = sessionId;
-            renderSessions();
             
-            // Load messages
-            try {
-                const res = await fetch(`/sessions/${sessionId}/messages`);
-                const data = await res.json();
-                const messages = data.messages || [];
-                renderMessages(messages);
-                
-                // Show welcome screen ONLY if messages container is empty
-                if (messages.length === 0) {
-                    welcomeScreen.classList.remove('hidden');
-                    messagesContainer.classList.add('hidden');
-                } else {
-                    welcomeScreen.classList.add('hidden');
-                    messagesContainer.classList.remove('hidden');
-                }
-            } catch (e) {
-                console.error('Failed to load messages:', e);
-            }
-            
-            // Connect WebSocket
-            connectWebSocket(sessionId);
-            
-            // Update active state in UI
+            // Mark active in sidebar
             document.querySelectorAll('.session-item').forEach(item => {
                 item.classList.toggle('active', item.dataset.id === sessionId);
             });
+
+            try {
+                const res = await fetch(`/sessions/${sessionId}/messages`, {
+                    headers: { 'X-API-Key': gatewayToken }
+                });
+                const data = await res.json();
+                
+                welcomeScreen.classList.add('hidden');
+                messagesContainer.classList.remove('hidden');
+                
+                renderMessages(data.messages);
+                scrollToBottom();
+                
+                // Connect WS if not connected
+                if (!isConnected) connectWebSocket();
+                
+            } catch (e) {
+                showToast('Gagal memuat pesan', 'error');
+            }
         }
 
         async function createNewSession() {
@@ -1357,7 +1790,7 @@
             messagesContainer.classList.add('hidden');
             
             // Connect WebSocket to new session
-            connectWebSocket(newId);
+            connectWebSocket();
             
             // Focus input
             messageInput.focus();
@@ -1366,21 +1799,20 @@
         async function deleteSession(sessionId) {
             showConfirm('Hapus sesi ini? Semua pesan akan hilang.', async () => {
                 try {
-                    await fetch(`/sessions/${sessionId}`, { method: 'DELETE' });
-                    sessions = sessions.filter(s => s.session_id !== sessionId);
-                    renderSessions();
-                    
-                    if (currentSessionId === sessionId) {
-                        if (sessions.length > 0) {
-                            selectSession(sessions[0].session_id);
-                        } else {
+                    const res = await fetch(`/sessions/${sessionId}`, { 
+                        method: 'DELETE',
+                        headers: { 'X-API-Key': gatewayToken }
+                    });
+                    if (res.ok) {
+                        showToast('Sesi dihapus', 'info');
+                        loadSessions();
+                        if (currentSessionId === sessionId) {
                             currentSessionId = null;
                             messagesContainer.innerHTML = '';
-                            messagesContainer.classList.add('hidden');
                             welcomeScreen.classList.remove('hidden');
+                            messagesContainer.classList.add('hidden');
                         }
                     }
-                    showToast('Sesi dihapus', 'info');
                 } catch (e) {
                     showToast('Gagal menghapus sesi', 'error');
                 }
@@ -1410,13 +1842,15 @@
             const time = getFormattedTime();
             div.innerHTML = `
                 <div class="bubble">
-                    <button class="bubble-copy-btn" title="Salin pesan" onclick="copyToClipboard(\`${text.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋</button>
+                    <button class="bubble-copy-btn" title="Salin pesan">📋</button>
                     <div class="bubble-text">${renderContent(text)}</div>
                     <div class="bubble-footer">
                         <span class="bubble-time">${time}</span>
                     </div>
                 </div>
             `;
+            // Fix XSS: gunakan addEventListener bukan onclick attribute
+            div.querySelector('.bubble-copy-btn').addEventListener('click', () => copyToClipboard(text));
             messagesContainer.appendChild(div);
             scrollToBottom();
         }
@@ -1425,7 +1859,7 @@
             const div = document.createElement('div');
             div.className = 'message-agent';
             const time = getFormattedTime();
-            
+
             let statsHtml = '';
             if (stats) {
                 statsHtml = `
@@ -1443,7 +1877,7 @@
                 <div class="avatar">🤖</div>
                 <div class="content">
                     <div class="bubble">
-                        <button class="bubble-copy-btn" title="Salin pesan" onclick="copyToClipboard(\`${text.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋</button>
+                        <button class="bubble-copy-btn" title="Salin pesan">📋</button>
                         <div class="bubble-text">${renderContent(text)}</div>
                         <div class="bubble-footer">
                             ${statsHtml}
@@ -1452,6 +1886,8 @@
                     </div>
                 </div>
             `;
+            // Fix XSS: gunakan addEventListener bukan onclick attribute
+            div.querySelector('.bubble-copy-btn').addEventListener('click', () => copyToClipboard(text));
             messagesContainer.appendChild(div);
             scrollToBottom();
         }
@@ -1593,9 +2029,10 @@
                 const btn = document.createElement('button');
                 btn.className = 'bubble-copy-btn';
                 btn.title = 'Salin pesan';
-                const escapedText = currentAgentContent.replace(/`/g, '\\`').replace(/\$/g, '\\$');
-                btn.setAttribute('onclick', `copyToClipboard(\`${escapedText}\`)`);
                 btn.innerHTML = '📋';
+                // Fix XSS: gunakan addEventListener, capture content saat button dibuat
+                const contentSnapshot = currentAgentContent;
+                btn.addEventListener('click', () => copyToClipboard(contentSnapshot));
                 bubble.insertBefore(btn, bubble.firstChild);
             }
 
@@ -1622,7 +2059,9 @@
             }
             
             // Fetch global stats and update settings panel
-            fetch('/stats').then(r => r.json()).then(stats => {
+            fetch('/stats', {
+                headers: { 'X-API-Key': gatewayToken }
+            }).then(r => r.json()).then(stats => {
                 const reqEl = document.getElementById('usage-requests');
                 const inEl = document.getElementById('usage-input');
                 const outEl = document.getElementById('usage-output');
@@ -1650,7 +2089,10 @@
                     session.name = newName;
                     fetch(`/sessions/${currentSessionId}/name`, {
                         method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-API-Key': gatewayToken 
+                        },
                         body: JSON.stringify({ name: newName })
                     }).then(() => {
                         renderSessions();
@@ -1686,7 +2128,7 @@
                 renderSessions();
 
                 // Connect WebSocket
-                connectWebSocket(newId);
+                connectWebSocket();
 
                 // Wait for WS to be connected
                 for (let i = 0; i < 10; i++) {
@@ -1800,7 +2242,13 @@
             `;
             
             // Load settings
-            fetch('/settings').then(r => r.json()).then(data => {
+            fetch('/settings', {
+                headers: { 'X-API-Key': gatewayToken }
+            }).then(r => r.json()).then(data => {
+                if (data.detail && data.detail.includes('Akses dilarang')) {
+                    askForToken();
+                    return;
+                }
                 // Populate OpenRouter
                 document.getElementById('setting-or-model').value = data.openrouter.model || '';
                 document.getElementById('setting-or-api-key').value = data.openrouter.api_key || '';
@@ -1819,7 +2267,9 @@
             });
             
             // Load stats
-            fetch('/stats').then(r => r.json()).then(data => {
+            fetch('/stats', {
+                headers: { 'X-API-Key': gatewayToken }
+            }).then(r => r.json()).then(data => {
                 const reqEl = document.getElementById('usage-requests');
                 const inEl = document.getElementById('usage-input');
                 const outEl = document.getElementById('usage-output');
@@ -1831,7 +2281,9 @@
             });
             
             // Load skills
-            fetch('/skills/list-detail').then(r => r.json()).then(data => {
+            fetch('/skills/list-detail', {
+                headers: { 'X-API-Key': gatewayToken }
+            }).then(r => r.json()).then(data => {
                 const skillsList = document.getElementById('skills-list');
                 if (!skillsList) return;
                 const activeSkill = data.active_skill;
@@ -1883,6 +2335,7 @@
                         return;
                     }
                     
+                    const payload = { provider, model, api_key: apiKey };
                     const originalText = btn.textContent;
                     btn.textContent = '⏳ Memvalidasi...';
                     btn.disabled = true;
@@ -1890,20 +2343,23 @@
                     try {
                         const res = await fetch('/settings/validate-and-save', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ provider, model, api_key: apiKey })
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'X-API-Key': gatewayToken 
+                            },
+                            body: JSON.stringify(payload)
                         });
-                        const data = await res.json();
                         
+                        const result = await res.json();
                         if (res.ok) {
-                            showToast(`Koneksi ${provider} berhasil!`, 'success');
+                            showToast(result.message || `Koneksi ${provider} berhasil!`, 'success');
                             renderSettingsContent(); // Refresh UI to show active provider
                             fetchModelInfo();
                         } else {
-                            showToast(data.detail || 'Gagal menyimpan', 'error');
+                            showToast(result.detail || 'Gagal menyimpan settings', 'error');
                         }
                     } catch (e) {
-                        showToast('Gagal terhubung ke server', 'error');
+                        showToast('Kesalahan koneksi ke server', 'error');
                     } finally {
                         btn.textContent = originalText;
                         btn.disabled = false;
@@ -2173,17 +2629,6 @@
             background: var(--accent-light);
         }
         
-        .active-label {
-            background: var(--accent);
-            color: white;
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 8px;
-            display: inline-block;
-            vertical-align: middle;
-        }
-        
         .settings-divider {
             height: 1px;
             background: var(--border);
@@ -2210,10 +2655,6 @@
             font-weight: 500;
         }
         
-        .skill-item .skill-status {
-            font-size: 11px;
-            color: var(--accent);
-        }
         
         .no-skills {
             padding: 16px;
@@ -2385,18 +2826,6 @@
             direction: rtl;
             unicode-bidi: embed;
             display: inline-block;
-        }
-        
-        .arabic-block {
-            font-family: 'Noto Naskh Arabic', serif;
-            direction: rtl;
-            text-align: right;
-            background: var(--bg-sidebar);
-            padding: 8px 12px;
-            border-radius: 8px;
-            border-right: 3px solid var(--accent);
-            margin: 8px 0;
-            line-height: 1.8;
         }
         
         .code-block {
