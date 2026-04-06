@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(venv\\\\Scripts\\\\activate)",
+      "Bash(python src/gateway/server.py)",
+      "Bash(./venv/Scripts/python.exe src/gateway/server.py)",
+      "Read(//d/D:/PROJECT_APP/**)",
+      "Bash(python:*)",
+      "Bash(./venv/Scripts/python.exe -m pip install -r requirements.txt)",
+      "Bash(printf:*)",
+      "Bash(curl -s http://127.0.0.1:8766/info)",
+      "Bash(python3:*)"
+    ]
+  }
+}
