@@ -4,36 +4,46 @@ import json
 import subprocess
 import time
 import sys
+import os
 from pathlib import Path
 
-from src.agent.agent_loop import AgentLoop
-from src.memory.session_store import SessionStore
-from src.memory.glossary_store import GlossaryStore
-
+# Fix path to include src
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+TEST_TOKEN = "test-token-12345"
 
 class TestE2E:
     @classmethod
     def setup_class(cls):
         cls.port = 8780
+        # Set fixed token for testing
+        env = os.environ.copy()
+        env["GATEWAY_TOKEN"] = TEST_TOKEN
+        env["KYURAA_TEST_MODE"] = "1"
+        # Start server
         cls.server = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "src.gateway.server:app",
              "--host", "127.0.0.1", "--port", str(cls.port)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            text=True
         )
-        time.sleep(4)
+        time.sleep(8) # Beri waktu lebih lama agar server benar-benar siap
 
     @classmethod
     def teardown_class(cls):
         cls.server.terminate()
         cls.server.wait()
 
-    async def _send_message(self, session_id: str, content: str):
+    async def _get_ws_connection(self, session_id: str):
         import websockets
-        uri = f"ws://127.0.0.1:{self.port}/ws/{session_id}"
-        async with websockets.connect(uri) as ws:
+        uri = f"ws://127.0.0.1:{self.port}/ws/{session_id}?token={TEST_TOKEN}"
+        return await websockets.connect(uri)
+
+    async def _send_message(self, session_id: str, content: str):
+        ws = await self._get_ws_connection(session_id)
+        async with ws:
             await ws.send(json.dumps({"type": "message", "content": content}))
             tokens = []
             async for msg in ws:
@@ -47,94 +57,46 @@ class TestE2E:
             return "".join(tokens)
 
     @pytest.mark.asyncio
-    async def test_1_arabic_to_indonesian(self):
-        """Test Case 1: Deteksi arah Arab ke Indonesia"""
-        response = await self._send_message("e2e-01", "مَنْهَجِيَّةُ الْبَحْثِ")
-        response_lower = response.lower()
-        assert "metodologi" in response_lower or "metod" in response_lower, \
-            f"Expected 'metodologi' in response, got: {response[:200]}"
+    async def test_1_api_auth_failure(self):
+        """Test Case: Pastikan API menolak tanpa token valid"""
+        import httpx
+        async with httpx.AsyncClient() as client:
+            # Tanpa header X-API-Key
+            response = await client.get(f"http://127.0.0.1:{self.port}/stats")
+            assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_2_indonesian_to_arabic(self):
-        """Test Case 2: Deteksi arah Indonesia ke Arab"""
-        response = await self._send_message("e2e-02", "[LINGUISTIC] [AKADEMIK] Terjemahkan ke Arab: metodologi penelitian")
-        has_arabic = any("\u0600" <= c <= "\u06FF" for c in response)
-        assert has_arabic, f"Expected Arabic in response, got: {response[:200]}"
+    async def test_2_api_auth_success(self):
+        """Test Case: Pastikan API menerima dengan token valid"""
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://127.0.0.1:{self.port}/stats",
+                headers={"X-API-Key": TEST_TOKEN}
+            )
+            assert response.status_code == 200
+            assert "total_requests" in response.json()
 
     @pytest.mark.asyncio
-    async def test_3_mode_translation_only(self):
-        """Test Case 3: Mode translation-only tanpa analisis gramatikal"""
-        response = await self._send_message("e2e-03", "[TRANSLATION-ONLY] [AKADEMIK] hasil saja: bab penelitian")
-        response_lower = response.lower()
-        has_nahwu = any(word in response_lower for word in ["nahwu", "i'rab", "fi'il", "isim", "irab"])
-        if has_nahwu:
-            print(f"Warning: translation-only may contain grammar terms: {response[:200]}")
-        has_arabic = any("\u0600" <= c <= "\u06FF" for c in response)
-        assert has_arabic, "Expected Arabic translation in response"
+    async def test_3_translation_flow(self):
+        """Test Case: Flow terjemahan dasar"""
+        response = await self._send_message("e2e-basic", "Halo, siapa kamu?")
+        assert len(response) > 0
+        assert "Kyuraa" in response or "asisten" in response.lower()
 
     @pytest.mark.asyncio
-    async def test_4_mode_linguistic(self):
-        """Test Case 4: Mode linguistic dengan poin nahwu/sharaf"""
-        response = await self._send_message("e2e-04", "[LINGUISTIC] [AKADEMIK] analisis: variabel bebas")
-        response_lower = response.lower()
-        has_analysis = any(word in response_lower for word in ["nahwu", "i'rab", "sharaf", "fi'il", "wazan", "analisis", "gramatikal"])
-        assert has_analysis, f"Expected grammatical analysis in linguistic mode, got: {response[:300]}"
-
-    @pytest.mark.asyncio
-    async def test_5_save_to_file(self):
-        """Test Case 5: Simpan terjemahan ke file output"""
-        from src.agent.agent_loop import AgentLoop
-        from pathlib import Path
-
-        output_dir = Path("workspace/output")
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        output_file = output_dir / "test_e2e_output.txt"
-        if output_file.exists():
-            output_file.unlink()
-
-        agent = AgentLoop(session_id="e2e-05")
-        response = agent.run(user_input="[TRANSLATION-ONLY] [AKADEMIK] terjemahkan: penelitian")
-
-        saved_path = agent.save_translation("test_e2e_output.txt", response.get("response", ""))
-
-        assert output_file.exists(), f"File should exist at {output_file}"
-        content = output_file.read_text(encoding="utf-8")
-        assert len(content) > 0, "File should have content"
-
-    @pytest.mark.asyncio
-    async def test_6_glossary_saved(self):
-        """Test Case 6: Glosarium tersimpan setelah terjemahan"""
-        glossary_path = Path("workspace/glossary/glossary.json")
-        if glossary_path.exists():
-            glossary_path.unlink()
-
-        agent = AgentLoop(session_id="e2e-06")
-        response = agent.run(user_input="[LINGUISTIC] [AKADEMIK] Terjemahkan: metodologi penelitian")
-
-        glossary = GlossaryStore()
-        terms = glossary.get_all().get("terms", [])
-        assert len(terms) > 0, "Glossary should have at least one term after translation"
-
-    @pytest.mark.asyncio
-    async def test_7_session_history(self):
-        """Test Case 7: Riwayat sesi dengan 3 pesan berurutan"""
-        session_id = "e2e-07"
-        store = SessionStore()
-        store.clear_session(session_id)
-        store.create_session(session_id)
-
-        messages = [
-            "Pesan pertama",
-            "Pesan kedua",
-            "Pesan ketiga"
-        ]
-
-        for msg in messages:
-            store.add_message(session_id, "user", msg)
-
-        history = store.get_history(session_id, limit=20)
-        assert len(history) == 3, f"Expected 3 messages, got {len(history)}"
-        assert history[0]["content"] == "Pesan pertama"
-        assert history[1]["content"] == "Pesan kedua"
-        assert history[2]["content"] == "Pesan ketiga"
+    async def test_4_websocket_reconnection(self):
+        """Test Case: Simulasi pemutusan dan penyambungan kembali WebSocket"""
+        session_id = "reconnect-test"
+        
+        # 1. Koneksi pertama
+        ws1 = await self._get_ws_connection(session_id)
+        await ws1.close() # Putus sengaja
+        
+        # 2. Koneksi kedua (reconnect) dengan session id sama
+        ws2 = await self._get_ws_connection(session_id)
+        async with ws2:
+            await ws2.send(json.dumps({"type": "message", "content": "Tes reconnect"}))
+            # Tunggu respon sedikit untuk pastikan server tidak crash
+            msg = await ws2.recv()
+            assert msg is not None

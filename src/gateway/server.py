@@ -53,6 +53,9 @@ def check_port_available(host: str, port: int) -> bool:
 
 
 def write_pid_lock(port: int) -> Path:
+    if os.environ.get("KYURAA_TEST_MODE") == "1":
+        return Path(f'.test-lock-{port}')
+
     lock_file = Path(f'.kyuraa-lock-{port}')
     if lock_file.exists():
         try:
@@ -149,7 +152,7 @@ class GatewayServer:
         self._port = port
 
         # Enforce single instance — check BEFORE creating app
-        if not check_port_available(self._host, self._port):
+        if os.environ.get("KYURAA_TEST_MODE") != "1" and not check_port_available(self._host, self._port):
             print(f"\n❌ ERROR: Port {self._port} sudah digunakan!")
             print("   Kemungkinan Kyuraa sudah berjalan di instance lain.")
             print("   Tutup instance yang lama terlebih dahulu.\n")

@@ -34,7 +34,8 @@ class TestToolRegistry:
     def test_write_file_to_disallowed_path_raises_permission_error(self):
         result = self.registry.execute("write_file", path=str(self.test_file), content="test")
         assert result["success"] is False
-        assert "PermissionError" in result["error"] or "not allowed" in result["error"]
+        # Registry error message for PermissionError is str(e)
+        assert "tidak diizinkan" in result["error"]
 
     def test_write_file_to_allowed_path_succeeds(self):
         result = self.registry.execute("write_file", path=str(self.allowed_file), content="test content")
@@ -57,4 +58,4 @@ class TestToolRegistry:
     def test_execute_nonexistent_tool(self):
         result = self.registry.execute("nonexistent_tool")
         assert result["success"] is False
-        assert "not found" in result["error"]
+        assert "tidak ditemukan" in result["error"]

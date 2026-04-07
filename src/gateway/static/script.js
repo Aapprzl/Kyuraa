@@ -1,6 +1,9 @@
         // ============================================
-        // STATE
+        // STATE & ICONS
         // ============================================
+        const ICON_COPY = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+        const ICON_CHECK = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
         let ws = null;
         let currentSessionId = null;
         let sessions = [];
@@ -158,8 +161,17 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        function copyToClipboard(text) {
+        function copyToClipboard(text, btn) {
             navigator.clipboard.writeText(text).then(() => {
+                // Change icon to checkmark temporarily
+                if (btn) {
+                    btn.innerHTML = ICON_CHECK;
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.innerHTML = ICON_COPY;
+                        btn.classList.remove('copied');
+                    }, 2000);
+                }
                 showToast('Pesan disalin!', 'success');
             }).catch(err => {
                 console.error('Failed to copy text: ', err);
@@ -601,7 +613,7 @@
             const time = getFormattedTime();
             div.innerHTML = `
                 <div class="bubble">
-                    <button class="bubble-copy-btn" title="Salin pesan">📋</button>
+                    <button class="bubble-copy-btn" title="Salin pesan">${ICON_COPY}</button>
                     <div class="bubble-text">${renderContent(text)}</div>
                     <div class="bubble-footer">
                         <span class="bubble-time">${time}</span>
@@ -611,7 +623,8 @@
 
             `;
             // Fix XSS: gunakan addEventListener bukan onclick attribute
-            div.querySelector('.bubble-copy-btn').addEventListener('click', () => copyToClipboard(text));
+            const copyBtn = div.querySelector('.bubble-copy-btn');
+            copyBtn.addEventListener('click', () => copyToClipboard(text, copyBtn));
             messagesContainer.appendChild(div);
             scrollToBottom();
         }
@@ -638,7 +651,7 @@
                 <div class="avatar" style="font-weight: 600; font-size: 13px;">K</div>
                 <div class="content">
                     <div class="bubble">
-                        <button class="bubble-copy-btn" title="Salin pesan">📋</button>
+                        <button class="bubble-copy-btn" title="Salin pesan">${ICON_COPY}</button>
                         <div class="bubble-text">${renderContent(text)}</div>
                         <div class="bubble-footer">
                             ${statsHtml}
@@ -650,7 +663,8 @@
 
             `;
             // Fix XSS: gunakan addEventListener bukan onclick attribute
-            div.querySelector('.bubble-copy-btn').addEventListener('click', () => copyToClipboard(text));
+            const copyBtn = div.querySelector('.bubble-copy-btn');
+            copyBtn.addEventListener('click', () => copyToClipboard(text, copyBtn));
             messagesContainer.appendChild(div);
             scrollToBottom();
         }
@@ -800,10 +814,10 @@
                 const btn = document.createElement('button');
                 btn.className = 'bubble-copy-btn';
                 btn.title = 'Salin pesan';
-                btn.innerHTML = '📋';
+                btn.innerHTML = ICON_COPY;
                 // Fix XSS: gunakan addEventListener, capture content saat button dibuat
                 const contentSnapshot = currentAgentContent;
-                btn.addEventListener('click', () => copyToClipboard(contentSnapshot));
+                btn.addEventListener('click', () => copyToClipboard(contentSnapshot, btn));
                 bubble.insertBefore(btn, bubble.firstChild);
             }
 

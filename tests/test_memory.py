@@ -52,6 +52,22 @@ class TestSessionStore:
         assert "session-a" in session_ids
         assert "session-b" in session_ids
 
+    def test_delete_last_user_message(self):
+        session_id = "test-delete-last"
+        self.store.create_session(session_id)
+        self.store.add_message(session_id, "user", "Pesan 1")
+        self.store.add_message(session_id, "assistant", "Balasan 1")
+        self.store.add_message(session_id, "user", "Pesan 2")
+        
+        # Harus menghapus 'Pesan 2'
+        result = self.store.delete_last_user_message(session_id)
+        assert result is True
+        
+        history = self.store.get_history(session_id)
+        assert len(history) == 2
+        assert history[-1]["role"] == "assistant"
+        assert history[-1]["content"] == "Balasan 1"
+
 
 class TestGlossaryStore:
     def setup_method(self):
