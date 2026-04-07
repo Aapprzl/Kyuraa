@@ -18,6 +18,7 @@ from src.utils.security import SecurityManager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
@@ -167,6 +168,9 @@ class GatewayServer:
             'input_tokens': 0,
             'output_tokens': 0
         }
+
+        # Sajikan file statis (style.css, script.js, dll.)
+        self._app.mount("/static", StaticFiles(directory="src/gateway/static"), name="static")
 
         self._setup_routes()
 
