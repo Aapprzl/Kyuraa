@@ -14,5 +14,6 @@
         "load_reference": true,
         "open_output_folder": true,
         "word-counter": false
-    }
+    },
+    "active_skill": "penerjemah-arab-indo"
 }

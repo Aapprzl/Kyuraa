@@ -191,20 +191,11 @@
 
         function showSkillBadge(skillName) {
             activeSkill = skillName;
-            const badge = document.getElementById('skill-badge-active');
-            if (badge) {
-                badge.querySelector('.skill-name').textContent = skillName;
-                badge.classList.remove('hidden');
-            }
             updateHeaderSkillIndicator(skillName);
         }
 
         function hideSkillBadge() {
             activeSkill = null;
-            const badge = document.getElementById('skill-badge-active');
-            if (badge) {
-                badge.classList.add('hidden');
-            }
             updateHeaderSkillIndicator(null);
         }
 
@@ -246,9 +237,7 @@
             }
         }
 
-        // Add event listener for skill remove button
-        document.getElementById('skill-badge-active').querySelector('.skill-remove').addEventListener('click', deactivateSkill);
-
+        // Add event listener cleared (moved to settings UI only)
         // ============================================
         // STATS BAR
         // ============================================
