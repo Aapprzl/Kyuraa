@@ -1546,3 +1546,36 @@
 #header-skill-badge { transition: all 0.2s ease; border: 1px solid var(--accent); background: var(--accent-light); cursor: default; }
 #header-skill-badge:hover { opacity: 0.9; }
 #header-skill-badge.hidden { display: none !important; }
+
+
+#cancel-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    border: 1px solid var(--danger-text);
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.1s;
+    flex-shrink: 0;
+}
+
+#cancel-btn:hover {
+    background: var(--danger-text);
+    color: white;
+}
+
+#cancel-btn:active {
+    transform: scale(0.95);
+}
+
+#cancel-btn.hidden {
+    display: none !important;
+}
+
+
+.bubble.loading-mode { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 0 0 10px !important; }

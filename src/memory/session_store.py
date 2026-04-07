@@ -170,6 +170,21 @@ class SessionStore:
             conn.commit()
         return True
 
+    def delete_last_user_message(self, session_id: str) -> bool:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT id FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1",
+                (session_id,)
+            ).fetchone()
+            
+            if row:
+                message_id = row["id"]
+                conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+                conn.commit()
+                log("memory", f"Deleted last user message (id: {message_id}) in session: {session_id}")
+                return True
+        return False
+
     def auto_name_session(self, session_id: str) -> str | None:
         with self._get_conn() as conn:
             row = conn.execute(

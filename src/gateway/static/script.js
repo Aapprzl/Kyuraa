@@ -8,6 +8,7 @@
         let currentAgentContent = '';
         let lastUserMessage = '';
         let isConnected = false;
+        let isGenerating = false;
         let activeSkill = null;
         let sessionStartTime = null;
         let sessionStats = { requests: 0, inputTokens: 0, outputTokens: 0 };
@@ -39,6 +40,7 @@
         const welcomeScreen = document.getElementById('welcome-screen');
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
         const settingsOverlay = document.getElementById('settings-overlay');
         const settingsContent = document.getElementById('settings-content');
         const modelBadge = document.getElementById('model-badge');
@@ -336,6 +338,9 @@
 
             ws.onclose = (e) => {
                 isConnected = false;
+                isGenerating = false;
+                cancelBtn.classList.add('hidden');
+                sendBtn.classList.remove('hidden');
                 console.log(`WebSocket Disconnected: ${e.code} ${e.reason}`);
                 
                 if (e.code === 4001) {
@@ -630,7 +635,7 @@
             }
 
             div.innerHTML = `
-                <div class="avatar">🤖</div>
+                <div class="avatar" style="font-weight: 600; font-size: 13px;">K</div>
                 <div class="content">
                     <div class="bubble">
                         <button class="bubble-copy-btn" title="Salin pesan">📋</button>
@@ -655,11 +660,10 @@
             typingStartTime = Date.now();
             currentAgentMessage = document.createElement('div');
             currentAgentMessage.className = 'message-agent';
-            const time = getFormattedTime();
             currentAgentMessage.innerHTML = `
-                <div class="avatar">🤖</div>
+                <div class="avatar" style="font-weight: 600; font-size: 13px;">K</div>
                 <div class="content">
-                    <div class="bubble">
+                    <div class="bubble loading-mode">
                         <div class="bubble-text">
                             <div class="typing-indicator">
                                 <span></span><span></span><span></span>
@@ -667,7 +671,7 @@
                         </div>
                         <div class="bubble-footer">
                             <div class="bubble-stats hidden"></div>
-                            <span class="bubble-time">${time}</span>
+                            <span class="bubble-time"></span>
                         </div>
                     </div>
                 </div>
@@ -717,6 +721,7 @@
             if (indicator) {
                 indicator.remove();
             }
+            bubble.classList.remove('loading-mode');
             const textContainer = bubble.querySelector('.bubble-text');
             textContainer.innerHTML = renderContent(currentAgentContent);
             scrollToBottom();
@@ -783,6 +788,12 @@
             // Set final content
             const textContainer = bubble.querySelector('.bubble-text');
             textContainer.innerHTML = renderContent(currentAgentContent);
+            
+            // Set the timestamp now that we've finished generating
+            const timeContainer = bubble.querySelector('.bubble-time');
+            if (timeContainer) {
+                timeContainer.textContent = getFormattedTime();
+            }
             
             // Add copy button if not present
             if (!bubble.querySelector('.bubble-copy-btn')) {
@@ -864,6 +875,9 @@
             currentAgentMessage = null;
             currentAgentContent = '';
             
+            isGenerating = false;
+            cancelBtn.classList.add('hidden');
+            sendBtn.classList.remove('hidden');
             sendBtn.disabled = false;
             scrollToBottom();
         }
@@ -930,10 +944,57 @@
             messageInput.style.height = 'auto';
 
             // Disable send button while waiting
+            isGenerating = true;
             sendBtn.disabled = true;
+            sendBtn.classList.add('hidden');
+            cancelBtn.classList.remove('hidden');
 
             updateStatsBar();
             scrollToBottom();
+        }
+
+        async function cancelMessage() {
+            if (!isGenerating) return;
+            
+            if (currentSessionId) {
+                try {
+                    fetch(`/sessions/${currentSessionId}/messages/last`, {
+                        method: 'DELETE',
+                        headers: { 'X-API-Key': gatewayToken }
+                    });
+                } catch (e) {
+                    console.error("Cancel API error", e);
+                }
+            }
+            
+            disconnectWebSocket();
+            
+            if (currentAgentMessage) currentAgentMessage.remove();
+            const chatNodes = messagesContainer.children;
+            if (chatNodes.length > 0) {
+                const lastNode = chatNodes[chatNodes.length - 1];
+                if (lastNode.classList.contains('message-user')) {
+                    lastNode.remove();
+                } else if (chatNodes.length > 1) {
+                    const secondLastNode = chatNodes[chatNodes.length - 2];
+                    if (secondLastNode.classList.contains('message-user')) secondLastNode.remove();
+                }
+            }
+            
+            messageInput.value = lastUserMessage;
+            messageInput.style.height = 'auto';
+            
+            isGenerating = false;
+            currentAgentMessage = null;
+            currentAgentContent = '';
+            
+            cancelBtn.classList.add('hidden');
+            sendBtn.classList.remove('hidden');
+            sendBtn.disabled = false;
+            
+            setTimeout(() => {
+                if(currentSessionId) connectWebSocket(currentSessionId);
+            }, 300);
         }
 
         // ============================================
@@ -1281,6 +1342,7 @@
         });
 
         sendBtn.addEventListener('click', sendMessage);
+        cancelBtn.addEventListener('click', cancelMessage);
         
         messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

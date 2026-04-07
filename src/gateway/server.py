@@ -509,6 +509,17 @@ class GatewayServer:
             log("gateway", f"Deleted session: {session_id}")
             return {"success": True}
 
+        @self._app.delete("/sessions/{session_id}/messages/last")
+        async def delete_last_message(session_id: str):
+            from src.memory.session_store import SessionStore
+            store = SessionStore()
+            deleted = store.delete_last_user_message(session_id)
+            if deleted:
+                log("gateway", f"Deleted last user message for session: {session_id}")
+                return {"success": True}
+            raise HTTPException(status_code=404, detail="No user message found to delete")
+
+
         @self._app.patch("/sessions/{session_id}/name")
         async def update_session_name(session_id: str, body: dict):
             from src.memory.session_store import SessionStore
