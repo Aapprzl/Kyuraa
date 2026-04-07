@@ -175,7 +175,9 @@
         // ============================================
         async function fetchSkillStatus() {
             try {
-                const res = await fetch('/skills');
+                const res = await fetch('/skills', {
+                    headers: { 'X-API-Key': gatewayToken }
+                });
                 const data = await res.json();
                 if (data.active_skill) {
                     showSkillBadge(data.active_skill);
@@ -220,7 +222,9 @@
 
         async function updateSkillBadgeFromServer() {
             try {
-                const res = await fetch('/skills');
+                const res = await fetch('/skills', {
+                    headers: { 'X-API-Key': gatewayToken }
+                });
                 const data = await res.json();
                 if (data.active_skill) {
                     showSkillBadge(data.active_skill);

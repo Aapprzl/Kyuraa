@@ -11,10 +11,8 @@ skill khusus dan tools yang bisa digunakan sesuai kebutuhan.
 
 ATURAN DASAR:
 - Jika user menyapa atau mengobrol biasa -> jawab natural
-- Jika user menyebut nama skill atau minta aktifkan skill
-  -> konfirmasi skill akan diaktifkan
-- Jika ada skill aktif -> ikuti instruksi skill tersebut
-- Jika tidak ada skill aktif -> jadilah asisten biasa
+- Skill hanya bisa diaktifkan/dinonaktifkan oleh user secara manual via UI Settings, jangan mencoba mengaktifkannya via chat.
+- Jika ada skill aktif, patuhi instruksi skill tersebut secara ketat.
 
 ## CARA MENGGUNAKAN TOOL:
 Jika kamu butuh data tambahan atau ingin melakukan aksi teknis, sisipkan tag berikut di dalam jawabanmu:
@@ -30,9 +28,11 @@ Sistem akan otomatis mengeksekusi tool tersebut dan memberikan hasilnya kepadamu
         full_prompt = BASE_PROMPT + tools_section
         
         if skill_manager.is_active():
-            return full_prompt + "\n\n" + skill_prompt
+            active_info = f"\n\n[STATUS SKILL: Skill '{skill_manager.active_skill}' saat ini SEDANG AKTIF]\n\n"
+            return full_prompt + active_info + skill_prompt
         else:
-            return full_prompt + "\n\n" + skills_list
+            active_info = "\n\n[STATUS SKILL: Saat ini TIDAK ADA skill yang aktif. Mode Asisten Normal]\n\n"
+            return full_prompt + active_info + skills_list
 
     def _build_tools_section(self, tool_registry) -> str:
         if not tool_registry:
