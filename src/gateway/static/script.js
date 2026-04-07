@@ -207,26 +207,15 @@
         }
 
         function updateHeaderSkillIndicator(skillName) {
-            let indicator = document.getElementById('skill-indicator');
+            const badge = document.getElementById('header-skill-badge');
+            if (!badge) return;
+            
             if (!skillName) {
-                if (indicator) {
-                    indicator.remove();
-                }
-                return;
+                badge.classList.add('hidden');
+            } else {
+                document.getElementById('header-skill-name').textContent = skillName;
+                badge.classList.remove('hidden');
             }
-            
-            if (!indicator) {
-                indicator = document.createElement('div');
-                indicator.id = 'skill-indicator';
-                indicator.className = 'skill-indicator';
-                
-                const modelBadge = document.getElementById('model-badge');
-                if (modelBadge && modelBadge.parentNode) {
-                    modelBadge.parentNode.insertBefore(indicator, modelBadge);
-                }
-            }
-            
-            indicator.innerHTML = `<span class='skill-badge'>🎯 ${skillName}</span>`;
         }
 
         async function updateSkillBadgeFromServer() {

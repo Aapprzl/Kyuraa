@@ -1542,3 +1542,7 @@
 
 .active-skill-item { border-color: var(--accent-primary) !important; background: rgba(85, 145, 237, 0.05) !important; }
 .active-skill-item .tool-badge.builtin { background: var(--accent-primary); color: white; }
+
+#header-skill-badge { transition: all 0.2s ease; border: 1px solid var(--accent); background: var(--accent-light); cursor: default; }
+#header-skill-badge:hover { opacity: 0.9; }
+#header-skill-badge.hidden { display: none !important; }
