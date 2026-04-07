@@ -1058,14 +1058,18 @@
 
                 
                 <div class="settings-section">
-                    <h3>Skill Management</h3>
-                    <div id="skills-list">Loading...</div>
-                    <div class="skill-actions">
-                        <button id="download-template-btn" class="settings-secondary-btn">
-                            📥 Download Template
-                        </button>
+                    <h3> Skill Management</h3>
+                    <div id="skills-count-badge">Memuat skills...</div>
+                    <div id="skills-list"></div>
+                    <div class="tools-action-row">
+                        <button id="reload-skills-btn" class="settings-secondary-btn"> Reload Skills</button>
+                        <button id="download-template-btn" class="settings-secondary-btn"> Download Template Skill</button>
                     </div>
-                </div>                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.6;">
+                         Skill memberikan instruksi khusus secara global. <strong>Maksimal 1 skill aktif</strong> pada satu waktu.
+                    </div>
+                </div>
+
                 </div>
 
                 <div class="settings-divider"></div>
@@ -1136,46 +1140,38 @@
                 if (totEl) totEl.textContent = data.total_tokens || 0;
             });
             
-            // Load skills
-            fetch('/skills/list-detail', {
-                headers: { 'X-API-Key': gatewayToken }
-            }).then(r => r.json()).then(data => {
-                const skillsList = document.getElementById('skills-list');
-                if (!skillsList) return;
-                const activeSkill = data.active_skill;
-                if (data.skills && data.skills.length > 0) {
-                    skillsList.innerHTML = `
-                        <table class="skills-table">
-                            <thead>
-                                <tr>
-                                    <th>Nama</th>
-                                    <th>Ver</th>
-                                    <th>Ref</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.skills.map(s => `
-                                    <tr class="${s.name === activeSkill ? 'active' : ''}">
-                                        <td>${s.name}</td>
-                                        <td>${s.version || '1.0'}</td>
-                                        <td>${s.references_count || 0}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
-                } else {
-                    skillsList.innerHTML = '<div class="no-skills">Belum ada skill terpasang</div>';
-                }
-            });
-            
-            // Download template button
+            // --- Skills Management INIT ---
+            loadSkillsSettings();
+
             const downloadBtn = document.getElementById('download-template-btn');
             if (downloadBtn) {
                 downloadBtn.addEventListener('click', () => {
                     window.location.href = '/skills/template';
                 });
             }
+
+            const reloadSkillsBtn = document.getElementById('reload-skills-btn');
+            if (reloadSkillsBtn) {
+                reloadSkillsBtn.addEventListener('click', async () => {
+                    reloadSkillsBtn.disabled = true;
+                    reloadSkillsBtn.textContent = 'Memuat...';
+                    try {
+                        const res = await fetch('/skills/reload', {
+                            method: 'POST',
+                            headers: { 'X-API-Key': gatewayToken }
+                        });
+                        const data = await res.json();
+                        showToast(data.message || 'Skills direload!', 'success');
+                        loadSkillsSettings();
+                    } catch (e) {
+                        showToast('Gagal reload skills', 'error');
+                    } finally {
+                        reloadSkillsBtn.disabled = false;
+                        reloadSkillsBtn.textContent = ' Reload Skills';
+                    }
+                });
+            }
+
             // --- Tools Management INIT ---
             loadToolsSettings();
 
@@ -1449,3 +1445,86 @@
                 checkbox.disabled = false;
             }
         }
+
+        // ============================================
+        // SKILLS MANAGEMENT LOGIC
+        // ============================================
+        async function loadSkillsSettings() {
+            const countBadge = document.getElementById('skills-count-badge');
+            const skillsList = document.getElementById('skills-list');
+            
+            try {
+                const res = await fetch('/skills', {
+                    headers: { 'X-API-Key': gatewayToken }
+                });
+                const data = await res.json();
+                
+                if (countBadge) {
+                    if (data.active_skill) {
+                        countBadge.innerHTML = `Skill Aktif: <strong>${data.active_skill}</strong>`;
+                    } else {
+                        countBadge.textContent = `Tidak ada skill aktif (Mode Normal)`;
+                    }
+                }
+                
+                if (skillsList) {
+                    if (data.skills && data.skills.length > 0) {
+                        skillsList.innerHTML = data.skills.map(s => renderSkillItem(s)).join('');
+                    } else {
+                        skillsList.innerHTML = '<div class="no-skills">Belum ada skill terpasang</div>';
+                    }
+                }
+            } catch (e) {
+                if (countBadge) countBadge.textContent = 'Gagal memuat skills';
+            }
+        }
+
+        function renderSkillItem(skill) {
+            return `
+                <div class="tool-item ${skill.is_active ? 'active-skill-item' : ''}">
+                    <div class="tool-item-info">
+                        <div class="tool-item-name">
+                            ${skill.name}
+                            ${skill.is_active ? '<span class="tool-badge builtin">Aktif</span>' : ''}
+                            <span class="tool-badge custom" style="background:var(--bg-tertiary);color:var(--text-secondary)">v${skill.version || '1.0'}</span>
+                        </div>
+                        <div class="tool-item-desc">${skill.description}</div>
+                        <div class="tool-item-desc" style="font-size:10px; margin-top:4px;">
+                            Ref: ${skill.references_count || 0} file | By: ${skill.author || 'Unknown'} | Kat: ${skill.category || 'Umum'}
+                        </div>
+                    </div>
+                    <div>
+                        ${skill.is_active 
+                            ? `<button class="settings-secondary-btn" onclick="setSkillActive(null)" style="color:var(--accent-danger);border-color:var(--accent-danger)">Nonaktifkan</button>`
+                            : `<button class="settings-secondary-btn" onclick="setSkillActive('${skill.name}')">Aktifkan</button>`
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+        async function setSkillActive(skillName) {
+            try {
+                const url = skillName ? `/skills/${skillName}/activate` : '/skills/deactivate';
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': gatewayToken }
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    showToast(data.message, 'success');
+                    loadSkillsSettings(); // Refresh UI list
+                    updateSkillBadgeFromServer(); // Refresh badge on header
+                } else {
+                    showToast(data.detail || 'Gagal mengubah skill', 'error');
+                }
+            } catch (e) {
+                showToast('Kesalahan koneksi', 'error');
+            }
+        }
+
+        // Expose functions to global scope for onclick handlers
+        window.toggleTool = toggleTool;
+        window.setSkillActive = setSkillActive;
+        window.deleteSession = deleteSession;

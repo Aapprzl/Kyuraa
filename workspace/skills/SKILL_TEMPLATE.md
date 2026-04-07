@@ -6,12 +6,15 @@
 
 name: template-skill          # Nama unik skill (tanpa spasi, gunakan hyphen)
 version: "1.0"                # Versi skill (format: "X.Y")
+author: Nama Pembuat          # Nama pembuat skill
+category: Edukasi             # Kategori skill (misal: Edukasi, Analisis, Produktivitas)
 description: >                # Deskripsi singkat skill (1-2 kalimat)
   Deskripsi skill di sini. Jelaskan apa yang skill ini lakukan
   dan kapan harus digunakan oleh pengguna.
 
 # Kata kunci pemicu otomatis (trigger)
-# Jika user message mengandung kata ini, skill akan disarankan
+# Jika user message mengandung kata ini, AI akan disarankan untuk memakai skill ini.
+# Namun, aktivasi utama sekarang dilakukan melalui menu Settings > Skills Management.
 trigger_keywords:
   - contoh
   - template

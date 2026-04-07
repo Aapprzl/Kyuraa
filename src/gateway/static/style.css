@@ -1539,3 +1539,6 @@
         .toast-info { background: #6B6560; color: white; }
         .toast-success { background: #27ae60; color: white; }
         .toast-error { background: #e74c3c; color: white; }
+
+.active-skill-item { border-color: var(--accent-primary) !important; background: rgba(85, 145, 237, 0.05) !important; }
+.active-skill-item .tool-badge.builtin { background: var(--accent-primary); color: white; }

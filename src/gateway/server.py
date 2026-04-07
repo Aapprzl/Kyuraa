@@ -534,43 +534,79 @@ class GatewayServer:
             skills_data = []
             for name, info in agent._skill_manager.available_skills.items():
                 desc = info.get("description", "")
-                if isinstance(desc, list):
-                    desc = " ".join(desc)
-                skills_data.append({
-                    "name": name,
-                    "description": desc,
-                    "is_active": self._active_skill == name,
-                })
+            skills_data = agent._skill_manager.list_skills_detail()
             return {
                 "skills": skills_data,
-                "active_skill": self._active_skill,
+                "active_skill": agent._skill_manager.active_skill,
+                "total": len(skills_data),
             }
 
-        @self._app.post("/skills/activate")
-        async def activate_skill(payload: SkillActivateSchema):
-            agent = self._get_system_agent()
-            skill_name = payload.skill_name.strip()
+        @self._app.post("/skills/{skill_name}/activate")
+        async def activate_skill(skill_name: str, request: Request):
+            self._verify_token(request)
+            system_agent = self._get_system_agent()
             try:
-                agent._skill_manager.activate(skill_name)
-                self._active_skill = skill_name
-                log("gateway", f"Skill activated via API: {skill_name}")
-                return {
-                    "success": True,
-                    "message": f"✅ Skill **{skill_name}** berhasil diaktifkan!",
-                }
+                system_agent._skill_manager.activate(skill_name)
             except ValueError as e:
                 raise HTTPException(status_code=404, detail=str(e))
 
+            # Sinkronisasi ke semua session agent yang sedang aktif
+            for agent in self._agents.values():
+                try:
+                    agent._skill_manager.activate(skill_name)
+                except Exception:
+                    pass
+
+            log("gateway", f"Skill '{skill_name}' activated globally")
+            return {
+                "success": True,
+                "active_skill": skill_name,
+                "message": f"✅ Skill '{skill_name}' berhasil diaktifkan.",
+            }
+
         @self._app.post("/skills/deactivate")
-        async def deactivate_skill():
-            agent = self._get_system_agent()
-            agent._skill_manager.deactivate()
-            self._active_skill = None
-            log("gateway", "Skill deactivated")
-            return {"success": True}
+        async def deactivate_skill(request: Request):
+            self._verify_token(request)
+            system_agent = self._get_system_agent()
+            system_agent._skill_manager.deactivate()
+
+            # Sinkronisasi ke semua session agent yang sedang aktif
+            for agent in self._agents.values():
+                try:
+                    agent._skill_manager.deactivate()
+                except Exception:
+                    pass
+
+            log("gateway", "Skill deactivated globally")
+            return {
+                "success": True,
+                "active_skill": None,
+                "message": "✅ Skill dinonaktifkan. Agent kembali ke mode asisten biasa.",
+            }
+
+        @self._app.post("/skills/reload")
+        async def reload_skills(request: Request):
+            self._verify_token(request)
+            system_agent = self._get_system_agent()
+            result = system_agent._skill_manager.reload()
+
+            # Reload juga di semua session agent aktif
+            for agent in self._agents.values():
+                try:
+                    agent._skill_manager.reload()
+                except Exception:
+                    pass
+
+            log("gateway", f"Skills reloaded — {result['total']} total")
+            return {
+                "success": True,
+                "message": f"✅ Skills berhasil direload. {result['total']} skill terdeteksi.",
+                **result,
+            }
 
         @self._app.get("/skills/template")
-        async def get_skill_template():
+        async def get_skill_template(request: Request):
+            self._verify_token(request)
             template_path = Path("workspace/skills/SKILL_TEMPLATE.md")
             if not template_path.exists():
                 raise HTTPException(status_code=404, detail="Template file tidak ditemukan")
@@ -580,39 +616,6 @@ class GatewayServer:
                 filename="SKILL_TEMPLATE.md",
                 headers={"Content-Disposition": "attachment; filename=SKILL_TEMPLATE.md"}
             )
-
-        @self._app.get("/skills/list-detail")
-        async def list_skills_detail():
-            agent = self._get_system_agent()
-            skills_data = []
-            for name, info in agent._skill_manager.available_skills.items():
-                desc = info.get("description", "")
-                if isinstance(desc, list):
-                    desc = " ".join(desc)
-
-                folder_path = Path(info.get("folder_path", ""))
-                refs_count = 0
-                refs_list = []
-                references_dir = folder_path / "references"
-                if references_dir.exists() and references_dir.is_dir():
-                    refs_list = [f.name for f in references_dir.iterdir() if f.is_file()]
-                    refs_count = len(refs_list)
-
-                version = "1.0"
-
-                skills_data.append({
-                    "name": name,
-                    "description": desc.replace("\n", " ").strip() if isinstance(desc, str) else str(desc),
-                    "version": version,
-                    "references_count": refs_count,
-                    "references": refs_list,
-                    "is_active": self._active_skill == name,
-                })
-            return {
-                "skills": skills_data,
-                "active_skill": self._active_skill,
-                "total": len(skills_data),
-            }
 
         # ─────────────────────────────────────────────
         # TOOLS MANAGEMENT ENDPOINTS
