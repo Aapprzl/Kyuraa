@@ -37,12 +37,13 @@ class LLMClient:
         if self._provider == "google":
             self._api_key = api_key or os.environ.get("GOOGLE_API_KEY")
             raw_model = model or os.environ.get("GOOGLE_MODEL", "gemini-2.0-flash")
-            # Strip 'google/' prefix and OpenRouter ':free' or ':online' suffixes for Google Direct API
+            # Strip 'google/' prefix if coming from OpenRouter config
             self._model_name = raw_model.replace("google/", "").split(":")[0]
+
             self._base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
         else:
             self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
-            self._model_name = model or os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "qwen/qwen3.6-plus:free")
+            self._model_name = model or os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "qwen/qwen2.5-72b-instruct")
             self._base_url = "https://openrouter.ai/api/v1"
 
         if not self._api_key:
@@ -57,6 +58,8 @@ class LLMClient:
             timeout=timeout,
         )
         self._max_tokens = max_tokens or 8192
+        # Max input context estimation limit (context window saftey)
+        self._max_input_estimate = 30000 
         self._timeout = timeout
 
     def chat(
@@ -66,12 +69,12 @@ class LLMClient:
         truncate_history: bool = True,
     ) -> dict[str, Any]:
         tokens = self.count_tokens(messages)
-        if tokens > self._max_tokens * 3:
+        if tokens > self._max_input_estimate:
             if truncate_history:
-                log("warn", f"Context too long ({tokens} tokens), truncating history...")
+                log("warn", f"Context too long (~{tokens} tokens), truncating history...")
                 messages = self._truncate_history(list(messages))
             else:
-                log("warn", f"Context length ({tokens} tokens) exceeds recommended limit")
+                log("warn", f"Context length (~{tokens} tokens) exceeds recommended limit")
 
         openai_messages = self._build_openai_messages(system, list(messages))
 
@@ -144,8 +147,8 @@ class LLMClient:
         messages: Sequence[dict[str, str]],
     ) -> Generator[tuple[str, dict | None, str | None], None, None]:
         tokens = self.count_tokens(messages)
-        if tokens > self._max_tokens * 3:
-            log("warn", f"Context too long ({tokens} tokens), truncating history for stream...")
+        if tokens > self._max_input_estimate:
+            log("warn", f"Context too long (~{tokens} tokens), truncating history for stream...")
             messages = self._truncate_history(list(messages))
 
         openai_messages = self._build_openai_messages(system, list(messages))
@@ -186,5 +189,6 @@ class LLMClient:
         total = 0
         for msg in messages:
             content = msg.get("content", "")
-            total += len(content) // 4
+            # More conservative estimation for Indonesian/Arabic (divide by 3 instead of 4)
+            total += len(content) // 3
         return total

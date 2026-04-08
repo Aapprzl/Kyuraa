@@ -66,7 +66,7 @@ class AgentLoop:
         style = self._detect_style(user_input)
 
         self._session_store.add_message(self._session_id, "user", user_input)
-        history = self._session_store.get_history(self._session_id, limit=10)
+        history = self._session_store.get_history(self._session_id, limit=20)
 
         needed_refs = self._prompt_builder.detect_needed_references(user_input, self._skill_manager)
         references = self._load_references(needed_refs)
@@ -82,7 +82,8 @@ class AgentLoop:
         finish_reason = response.get("finish_reason")
 
         if finish_reason == "length":
-            assistant_content += "\n\n⚠️ **Output terhenti karena batas panjang teks.** Silahkan ketik **'Lanjut'** untuk meneruskan bagian berikutnya."
+            # Don't append warning to content, let UI handle it via finish_reason
+            pass
 
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
         tool_results = self._execute_tool_calls(assistant_content)
@@ -106,7 +107,7 @@ class AgentLoop:
         style = self._detect_style(user_input)
 
         self._session_store.add_message(self._session_id, "user", user_input)
-        history = self._session_store.get_history(self._session_id, limit=10)
+        history = self._session_store.get_history(self._session_id, limit=20)
 
         needed_refs = self._prompt_builder.detect_needed_references(user_input, self._skill_manager)
         references = self._load_references(needed_refs)
@@ -127,15 +128,13 @@ class AgentLoop:
                 captured_usage = usage
             if finish_reason:
                 last_finish_reason = finish_reason
-            yield (token, usage)
+            yield (token, usage, finish_reason)
 
         assistant_content = "".join(full_response)
 
         if last_finish_reason == "length":
-            truncate_msg = "\n\n⚠️ **Output terhenti karena batas panjang teks.** Silahkan ketik **'Lanjut'** untuk meneruskan bagian berikutnya."
-            assistant_content += truncate_msg
-            for char in truncate_msg:
-                yield (char, None)
+            # Don't stream warning char by char, UI already knows it's truncated via the finish signal
+            pass
 
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
         tool_results = self._execute_tool_calls(assistant_content)

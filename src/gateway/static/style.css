@@ -1,4 +1,4 @@
-﻿        :root {
+        :root {
             --bg-base: #F9F7F4;
             --bg-surface: #FFFFFF;
             --bg-sidebar: #F0EDE8;
@@ -575,6 +575,35 @@
         
         .bubble-stats span {
             font-weight: 500;
+        }
+
+        .continue-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            padding: 6px 14px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.2);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .continue-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+            box-shadow: 0 6px 16px rgba(var(--accent-rgb), 0.3);
+        }
+
+        .continue-btn svg {
+            width: 12px;
+            height: 12px;
         }
 
         /* Input Area */

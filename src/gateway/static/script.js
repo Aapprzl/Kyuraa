@@ -821,6 +821,22 @@
                 bubble.insertBefore(btn, bubble.firstChild);
             }
 
+            // Add Smart Continue button if truncated
+            if (data.finish_reason === 'length') {
+                const continueBtn = document.createElement('button');
+                continueBtn.className = 'continue-btn';
+                continueBtn.title = 'Lanjutkan Pesan';
+                continueBtn.innerHTML = `Lanjutkan Pesan <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+                continueBtn.addEventListener('click', () => {
+                    continueBtn.remove();
+                    document.getElementById('user-input').value = 'Lanjut';
+                    sendMessage();
+                });
+                
+                // insert below the bubble-text inside the bubble
+                bubble.appendChild(continueBtn);
+            }
+
             // Update stats for the bubble
             const usage = data.usage || (data.usage_per_message);
             if (usage) {

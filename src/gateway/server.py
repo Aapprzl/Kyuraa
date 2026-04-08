@@ -198,7 +198,7 @@ class GatewayServer:
                 try:
                     with open(settings_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        active = data.get("ACTIVE_PROVIDER", "openrouter")
+                        active = data.get("ACTIVE_PROVIDER", "google")
                         if active == "google":
                             model = data.get("GOOGLE_MODEL", "")
                         else:
@@ -208,7 +208,7 @@ class GatewayServer:
 
             # Fallback to environment variables if file read failed or missing values
             if not active:
-                active = os.environ.get("ACTIVE_PROVIDER", "openrouter")
+                active = os.environ.get("ACTIVE_PROVIDER", "google")
             if not model:
                 if active == "google":
                     model = os.environ.get("GOOGLE_MODEL", "")
@@ -243,7 +243,7 @@ class GatewayServer:
             google_key = os.environ.get("GOOGLE_API_KEY", "")
 
             # Active
-            active = os.environ.get("ACTIVE_PROVIDER", "openrouter")
+            active = os.environ.get("ACTIVE_PROVIDER", "google")
 
             def mask(key):
                 return key[:6] + "********" if len(key) > 6 else "********" if key else ""
@@ -383,11 +383,17 @@ class GatewayServer:
                         self._session_buffers[session_id] = []
 
                         captured_usage = None
+                        captured_finish_reason = None
                         for item in agent.run_stream(user_input):
-                            token = item[0] if isinstance(item, tuple) else item
-                            usage = item[1] if isinstance(item, tuple) and len(item) > 1 else None
+                            token = item[0] if hasattr(item, '__getitem__') else item
+                            usage = item[1] if (hasattr(item, '__len__') and len(item) > 1) else None
+                            finish_reason = item[2] if (hasattr(item, '__len__') and len(item) > 2) else None
+                            
                             if usage:
                                 captured_usage = usage
+                            if finish_reason:
+                                captured_finish_reason = finish_reason
+                                
                             await websocket.send_json({
                                 "type": "token",
                                 "content": token,
@@ -408,6 +414,7 @@ class GatewayServer:
                         await websocket.send_json({
                             "type": "done",
                             "session_id": session_id,
+                            "finish_reason": captured_finish_reason,
                             "usage": {
                                 "input_tokens": input_tokens,
                                 "output_tokens": output_tokens,
@@ -597,6 +604,20 @@ class GatewayServer:
                 "active_skill": None,
                 "message": "✅ Skill dinonaktifkan. Agent kembali ke mode asisten biasa.",
             }
+
+        @self._app.get("/skills/template")
+        async def get_skill_template():
+            file_path = "workspace/skills/SKILL_TEMPLATE.md"
+            if not Path(file_path).exists():
+                raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+            return FileResponse(file_path, filename="SKILL_TEMPLATE.md")
+
+        @self._app.get("/tools/template")
+        async def get_tool_template():
+            file_path = "workspace/tools/TOOL_TEMPLATE.py"
+            if not Path(file_path).exists():
+                raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+            return FileResponse(file_path, filename="TOOL_TEMPLATE.py")
 
         @self._app.post("/skills/reload")
         async def reload_skills(request: Request):

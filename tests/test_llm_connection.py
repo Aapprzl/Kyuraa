@@ -16,8 +16,11 @@ if env_path.exists():
 
 from src.agent.llm_client import LLMClient
 
-@pytest.mark.skipif(not os.environ.get("OPENROUTER_API_KEY") and not os.environ.get("GOOGLE_API_KEY"), 
-                    reason="API keys not found in .env")
+provider = os.environ.get("ACTIVE_PROVIDER", "openrouter").lower()
+key_env = "GOOGLE_API_KEY" if provider == "google" else "OPENROUTER_API_KEY"
+
+@pytest.mark.skipif(not os.environ.get(key_env), 
+                    reason=f"{key_env} not found in .env")
 def test_llm_client_connection():
     print("Testing LLM Client...")
     client = LLMClient()
