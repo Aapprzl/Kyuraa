@@ -1,5 +1,6 @@
 import uuid
 from typing import Any, Generator
+import time
 import re
 
 from src.agent.skill_manager import SkillManager
@@ -121,14 +122,34 @@ class AgentLoop:
         full_response = []
         captured_usage = None
         last_finish_reason = None
+        MAX_RETRIES = 3
 
-        for token, usage, finish_reason in self._llm_client.stream(system=system, messages=messages):
-            full_response.append(token)
-            if usage:
-                captured_usage = usage
-            if finish_reason:
-                last_finish_reason = finish_reason
-            yield (token, usage, finish_reason)
+        for attempt in range(MAX_RETRIES):
+            try:
+                current_messages = list(messages)
+                if full_response:
+                    current_messages.append({"role": "assistant", "content": "".join(full_response)})
+                    current_messages.append({"role": "user", "content": "Koneksi terputus. Lanjutkan teks Anda tepat setelah karakter terakhir di atas tanpa sapaan atau penjelasan apa pun."})
+                
+                for token, usage, finish_reason in self._llm_client.stream(system=system, messages=current_messages):
+                    full_response.append(token)
+                    if usage:
+                        captured_usage = usage
+                    if finish_reason:
+                        last_finish_reason = finish_reason
+                    yield (token, usage, finish_reason)
+                
+                break  # Berhasil tanpa exception
+            except Exception as e:
+                err_str = f"{type(e).__name__}: {str(e)}".lower()
+                is_recoverable = any(x in err_str for x in ["timeout", "connection", "429", "rate", "quota"])
+                
+                if not is_recoverable or attempt == MAX_RETRIES - 1:
+                    raise  # Gagal total atau sudah melewati batas percobaan
+                
+                log("warn", f"Stream terputus: {e}. Auto-resume mid-stream (Attempt {attempt+1}/{MAX_RETRIES})...")
+                yield ("__SYSTEM_RECONNECT__", None, None)
+                time.sleep(3)
 
         assistant_content = "".join(full_response)
 

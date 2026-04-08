@@ -430,6 +430,8 @@
             } else if (data.type === 'error') {
                 showToast(data.message, 'error');
                 finishAgentMessage(data);
+            } else if (data.type === 'info') {
+                showToast(data.message, 'info');
             } else if (data.type === 'file_saved') {
                 showToast('File disimpan', 'success');
             }

@@ -394,6 +394,13 @@ class GatewayServer:
                             if finish_reason:
                                 captured_finish_reason = finish_reason
                                 
+                            if token == "__SYSTEM_RECONNECT__":
+                                await websocket.send_json({
+                                    "type": "info",
+                                    "message": "Koneksi ke AI terputus. Menyambung paksa aliran data secara otomatis..."
+                                })
+                                continue
+                                
                             await websocket.send_json({
                                 "type": "token",
                                 "content": token,

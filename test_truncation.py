@@ -1,31 +1,49 @@
 import asyncio
-from src.agent.agent_loop import AgentLoop
-from src.agent.skill_manager import SkillManager
+import os
+import time
 
-async def test_truncation():
-    # Force language detection tool mapping
-    import os
+def test_truncation():
     os.environ['KYURAA_TEST_MODE'] = '1'
     os.environ['ACTIVE_PROVIDER'] = 'google'
+    os.environ['GOOGLE_API_KEY'] = 'dummy_key'
     
-    print("Mempersiapkan Test AgentLoop...")
+    from src.agent.agent_loop import AgentLoop
+    
+    # Patch LLMClient to simulate a mid-stream crash
+    from src.agent.llm_client import LLMClient
+    original_stream = LLMClient.stream
+    
+    crash_injected = False
+    
+    def mocked_stream(self, system, messages):
+        nonlocal crash_injected
+        # Yield first few tokens
+        if not crash_injected:
+            yield ("Ini adalah tes ", None, None)
+            yield ("koneksi ", None, None)
+            yield ("terputus", None, None)
+            
+            crash_injected = True
+            # Raise exception mid-stream
+            raise ConnectionError("Simulated Network Drop!")
+        else:
+            # Second call (auto-resume)
+            yield ("...", None, None)
+            yield (" (berhasil menyambung!)", None, "stop")
+            
+    LLMClient.stream = mocked_stream
+            
+    print("Mempersiapkan Test AgentLoop untuk Reconnect...")
     agent = AgentLoop()
     
-    # Enable skill
-    agent._skill_manager.set_active("analisis-data-4d")
-    print(f"Active skill: {agent._skill_manager.active_skill}")
-    
-    user_input = "Tolong analisis data uji coba instrumen berikut berdasarkan metode 4D (jalur D). Data: 80, 90, 85, 75, 95, 100, 80, 85"
-    print(f"\nUser Input: {user_input}")
-    
-    print("\nStreaming response...")
+    user_input = "Tolong analisis"
     finish_reason_captured = None
     
+    print("\nStreaming response:")
     for item in agent.run_stream(user_input):
-        token = item[0] if (hasattr(item, '__getitem__') or isinstance(item, tuple)) else item
-        finish_reason = item[2] if (hasattr(item, '__len__') and len(item) > 2) else None
+        token = item[0] if isinstance(item, tuple) else item
+        finish_reason = item[2] if (isinstance(item, tuple) and len(item) > 2) else None
         
-        # print character by character like terminal
         print(token, end='', flush=True)
         if finish_reason:
             finish_reason_captured = finish_reason
@@ -33,4 +51,4 @@ async def test_truncation():
     print(f"\n\nTest DONE. Last finish_reason: {finish_reason_captured}")
 
 if __name__ == "__main__":
-    asyncio.run(test_truncation())
+    test_truncation()
