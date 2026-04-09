@@ -12,6 +12,8 @@
         "save_translation": true,
         "list_output_files": true,
         "load_reference": true,
+        "scan_file": true,
+        "read_chunk": true,
         "open_output_folder": true,
         "word-counter": false
     },

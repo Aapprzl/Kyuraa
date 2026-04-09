@@ -1,17 +1,17 @@
-﻿import json
+import json
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
 from src.utils.logger import log
 from src.tools.tool_loader import ToolLoader
+from src.tools.file_reader import FileReader
 
 
 # Path yang diizinkan untuk akses file (relatif terhadap working directory)
 _BASE = Path.cwd()
 ALLOWED_PATHS = [
-    str(_BASE / "workspace" / "output"),
-    str(_BASE / "workspace" / "memory"),
+    str(_BASE / "workspace"),
 ]
 
 _CUSTOM_TOOLS_DIR = Path("workspace/tools")
@@ -60,6 +60,8 @@ class ToolRegistry:
         # _state: name → bool (True = enabled)
         self._state: dict[str, bool] = {}
 
+        self._reader = FileReader()
+
         self._init()
 
     # ──────────────────────────────────────────
@@ -76,11 +78,13 @@ class ToolRegistry:
         """Daftarkan semua built-in tools beserta metadatanya."""
         builtin = [
             ("detect_language",    self._detect_language,    "Deteksi bahasa teks (Arab/Indonesia/Campuran)"),
-            ("read_file",          self._read_file,           "Baca isi file dari workspace"),
+            ("read_file",          self._read_file,          "Baca seluruh isi file sekaligus (disarankan hanya untuk file kecil)"),
             ("write_file",         self._write_file,          "Tulis konten ke file di workspace"),
             ("save_translation",   self._save_translation,    "Simpan hasil terjemahan ke workspace/output/"),
             ("list_output_files",  self._list_output_files,   "Tampilkan daftar file di folder output"),
             ("load_reference",     self._load_reference,      "Muat file referensi dari folder skills"),
+            ("scan_file",          self._scan_file,           "Analisis file besar untuk melihat daftar bagian (chunk) yang tersedia"),
+            ("read_chunk",         self._read_chunk,          "Baca satu bagian (chunk) spesifik dari file berdasarkan nomor index"),
             ("open_output_folder", self._open_output_folder,  "Buka folder output di Windows Explorer"),
         ]
         for name, func, desc in builtin:
@@ -258,6 +262,19 @@ class ToolRegistry:
             raise PermissionError(f"Path tidak diizinkan: {path}")
         log("tools", f"File read: {path}")
         return Path(path).read_text(encoding="utf-8")
+
+    def _scan_file(self, path: str) -> dict:
+        if not self._is_safe_path(path):
+            raise PermissionError(f"Path tidak diizinkan: {path}")
+        log("tools", f"File scan: {path}")
+        return self._reader.get_file_info(path)
+
+    def _read_chunk(self, path: str, index: Any) -> dict:
+        if not self._is_safe_path(path):
+            raise PermissionError(f"Path tidak diizinkan: {path}")
+        idx = int(index)
+        log("tools", f"File read chunk {idx}: {path}")
+        return self._reader.get_chunk(path, idx)
 
     def _write_file(self, path: str, content: str) -> bool:
         if not self._is_safe_path(path):

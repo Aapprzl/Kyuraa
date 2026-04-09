@@ -1,4 +1,0 @@
-# Folder ini digunakan untuk menyimpan file yang bisa dibaca oleh agent
-# Agent dapat membaca file di folder ini menggunakan tool:
-# - [TOOL:list_workspace_files] untuk melihat daftar file
-# - [TOOL:read_file_workspace filename="nama_file.ext"] untuk membaca isi file
