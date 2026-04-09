@@ -229,6 +229,21 @@ class GatewayServer:
             self._verify_token(request)
             return self._usage_store.get_daily_usage(days)
 
+        @self._app.get("/stats/by-model")
+        async def get_stats_by_model(request: Request):
+            self._verify_token(request)
+            return self._usage_store.get_by_model()
+
+        @self._app.post("/stats/clear-models")
+        async def clear_stats_by_models(request: Request):
+            self._verify_token(request)
+            body = await request.json()
+            models = body.get("models", [])
+            if not models:
+                return {"deleted": 0}
+            deleted = self._usage_store.clear_by_models(models)
+            return {"deleted": deleted}
+
         @self._app.get("/settings")
         async def get_settings(request: Request):
             self._verify_token(request)
@@ -419,7 +434,7 @@ class GatewayServer:
                         self._usage_store.log_usage(
                             session_id=session_id,
                             provider=os.environ.get("ACTIVE_PROVIDER", "google"),
-                            model=agent._model_name if hasattr(agent, "_model_name") else "unknown",
+                            model=agent.model_name,
                             input_tokens=input_tokens,
                             output_tokens=output_tokens,
                             status="success"

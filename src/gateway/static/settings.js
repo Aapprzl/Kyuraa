@@ -48,7 +48,12 @@
             sections.forEach(sec => {
                 if (sec.id === targetId) {
                     sec.classList.remove('hidden');
-                    if (targetId === 'section-stats') loadUsageChart();
+                    if (targetId === 'section-stats') {
+                        loadUsageChart();
+                        loadModelStats();
+                    } else if (targetId === 'section-tools') {
+                        loadTools();
+                    }
                 }
                 else sec.classList.add('hidden');
             });
@@ -65,6 +70,42 @@
             toast.classList.add('fade-out');
             setTimeout(() => toast.remove(), 500);
         }, 3000);
+    }
+
+    // 4b. Utility: Confirm Modal
+    function showConfirm(title, message, onConfirm) {
+        const existing = document.getElementById('confirm-modal');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'confirm-modal';
+        overlay.className = 'modal-overlay';
+
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const bgSurface = isDark ? '#252525' : '#ffffff';
+        const borderColor = isDark ? '#404040' : '#e5e5e5';
+
+        overlay.innerHTML = `
+            <div class="modal-box" style="background:${bgSurface};border:1px solid ${borderColor};">
+                <h3 style="margin:0 0 8px;font-size:16px;font-weight:600;color:var(--text-primary);">${escapeHtml(title)}</h3>
+                <p style="margin:0 0 20px;font-size:14px;color:var(--text-secondary);">${escapeHtml(message)}</p>
+                <div class="modal-actions">
+                    <button class="btn-modal-cancel">Batal</button>
+                    <button class="btn-modal-confirm">Hapus</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('.btn-modal-cancel').onclick = () => overlay.remove();
+        overlay.querySelector('.btn-modal-confirm').onclick = () => {
+            overlay.remove();
+            onConfirm();
+        };
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+        requestAnimationFrame(() => overlay.classList.add('show'));
     }
 
     // 5. Theme Logic
@@ -349,12 +390,89 @@
         } catch (e) { console.error('Failed to load chart:', e); }
     }
 
+    async function loadModelStats() {
+        const container = document.getElementById('model-stats-list');
+        const badge = document.getElementById('model-stats-count');
+        if (!container) return;
+        
+        try {
+            const res = await fetch('/stats/by-model', { headers: { 'X-API-Key': gatewayToken } });
+            const data = await res.json();
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div style="color:var(--text-muted); font-size:13px; padding:12px 0;">Belum ada data penggunaan per model.</div>';
+                badge.textContent = '0 model';
+                return;
+            }
+            
+            badge.textContent = data.length + ' model';
+            
+            container.innerHTML = data.map(m => `
+                <div class="model-stat-item">
+                    <div class="model-name">${escapeHtml(m.model)}</div>
+                    <div class="model-stat">
+                        <div class="label">Requests</div>
+                        <div class="value">${m.requests}</div>
+                    </div>
+                    <div class="model-stat">
+                        <div class="label">Input</div>
+                        <div class="value">${m.input_tokens}</div>
+                    </div>
+                    <div class="model-stat">
+                        <div class="label">Output</div>
+                        <div class="value">${m.output_tokens}</div>
+                    </div>
+                    <div class="model-stat total">
+                        <div class="label">Total</div>
+                        <div class="value">${m.total_tokens}</div>
+                    </div>
+                    <button class="btn-delete-model" onclick="deleteModel('${escapeHtml(m.model)}')">Hapus</button>
+                </div>
+            `).join('');
+        } catch (e) {
+            container.innerHTML = '<div style="color:var(--danger-text); font-size:13px;">Gagal memuat statistik model.</div>';
+        }
+    }
+    
+    async function deleteModel(modelName) {
+        showConfirm(
+            'Hapus Data Model',
+            `Hapus semua data untuk model "${modelName}"?`,
+            async () => {
+                try {
+                    const res = await fetch('/stats/clear-models', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-API-Key': gatewayToken
+                        },
+                        body: JSON.stringify({ models: [modelName] })
+                    });
+                    const result = await res.json();
+                    showToast(`Data "${modelName}" dihapus (${result.deleted} record)`, 'success');
+                    loadModelStats();
+                    loadStats();
+                } catch (e) {
+                    showToast('Gagal menghapus data', 'error');
+                }
+            }
+        );
+    }
+    window.deleteModel = deleteModel;
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // 9. Initial Load
     function init() {
         loadApiSettings();
         loadSkills();
         loadTools();
         loadStats();
+        loadModelStats();
         
         // Cek jika hash ada di URL dan aktifkan section yang sesuai
         const hash = window.location.hash;
@@ -364,8 +482,9 @@
                 navItem.click();
             }
         } else {
-            // Load chart jika Statistik adalah default (walaupun bukan default, ini aman)
+            // Load chart dan model stats jika Statistik adalah default
             loadUsageChart();
+            loadModelStats();
         }
         
         // Setup Button Handlers

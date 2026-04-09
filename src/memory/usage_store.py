@@ -88,4 +88,33 @@ class UsageStore:
                 """,
                 (f"-{days} days",)
             ).fetchall()
-        return [dict(row) for row in rows]
+            return [dict(row) for row in rows] if rows else []
+
+    def clear_by_models(self, models: list[str]) -> int:
+        """Delete usage logs for specified models. Returns count of deleted rows."""
+        with self._get_conn() as conn:
+            placeholders = ','.join('?' * len(models))
+            cursor = conn.execute(
+                f"DELETE FROM usage_logs WHERE model IN ({placeholders})",
+                models
+            )
+            conn.commit()
+            return cursor.rowcount
+
+    def get_by_model(self) -> list[dict]:
+        """Get usage grouped by model for breakdown."""
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT 
+                    model,
+                    COUNT(*) as requests,
+                    SUM(input_tokens) as input_tokens,
+                    SUM(output_tokens) as output_tokens,
+                    SUM(input_tokens) + SUM(output_tokens) as total_tokens
+                FROM usage_logs
+                GROUP BY model
+                ORDER BY total_tokens DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows] if rows else []

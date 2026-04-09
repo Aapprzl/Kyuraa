@@ -1,12 +1,12 @@
 {
     "OPENROUTER_API_KEY": "enc:gAAAAABp17Cesme5Icc9orwewyuS9iiPgtzzz1Z-_2VkrMzFzrjPt_B7nYXoLqknGgAhhqPgOIZQSUireL-zJmXsnn2n9ytO5pJLsSxEDBYPbCIJAGClzyE_JgVidFnBKvKX8sPG56L_io-5KFhe837zI7X72DNSGnq-lzHBqfkGWoW0JOh2f2s=",
     "OPENROUTER_MODEL": "nvidia/nemotron-3-nano-30b-a3b:free",
-    "ACTIVE_PROVIDER": "openrouter",
-    "AGENT_MODEL": "nvidia/nemotron-3-nano-30b-a3b:free",
-    "GOOGLE_API_KEY": "enc:gAAAAABp06Cl6_qYShbSQs5g1hd00MG1k6QnRG8QFTWwNHjaSaRs2hOuMaT9OxXtRpz3XjxZsmDTOjiXdPS91QlU4b1_QSY9uCapoDe6XdmDpGZV3vHUKT7uCpZ4a-DvWxOMl-tYP6oL",
+    "ACTIVE_PROVIDER": "google",
+    "AGENT_MODEL": "gemini-2.5-flash",
+    "GOOGLE_API_KEY": "enc:gAAAAABp18HXdnhNue6ePBdrPlSjknMv5dbtvub3O6dY33hJRoOI13DTMbsxNgL_7hIfhYs8pOckRGF-GCrMnyokAkHpzRGDkSTv5yfYb6I_i3PFD2oRfU10RdbR8fMKetSvfYxtZx-b",
     "GOOGLE_MODEL": "gemini-2.5-flash",
     "TOOLS_STATE": {
-        "detect_language": false,
+        "detect_language": true,
         "read_file": true,
         "write_file": true,
         "save_translation": true,
@@ -15,7 +15,7 @@
         "scan_file": true,
         "read_chunk": true,
         "open_output_folder": true,
-        "word-counter": false
+        "word-counter": true
     },
     "active_skill": "karya-ilmiah-pembimbing"
 }

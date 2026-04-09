@@ -31,6 +31,7 @@
                 <a href="#section-appearance" class="nav-item active">Tampilan</a>
                 <a href="#section-api" class="nav-item">Provider AI</a>
                 <a href="#section-skills" class="nav-item">Management Skill</a>
+                <a href="#section-tools" class="nav-item">Management Tools</a>
                 <a href="#section-stats" class="nav-item">Statistik</a>
             </nav>
             <div class="sidebar-footer">
@@ -143,13 +144,19 @@
                             <!-- JS populated -->
                         </div>
                     </div>
+                </section>
 
-                    <div class="card mt-20">
+                <!-- TOOLS MANAGEMENT -->
+                <section id="section-tools" class="settings-page-section hidden">
+                    <h1>Management Tools</h1>
+                    <p class="section-desc">Kelola tool bawaan dan kustom Kyuraa.</p>
+                    
+                    <div class="card">
                         <div class="card-header-flex">
                             <div id="tools-count-badge" class="badge">Memuat tools...</div>
                             <div class="action-buttons">
-                                <button id="reload-tools-btn" class="btn-secondary">Refresh Tools</button>
-                                <button id="download-tool-template-btn" class="btn-secondary">Template Tool</button>
+                                <button id="reload-tools-btn" class="btn-secondary">Refresh</button>
+                                <button id="download-tool-template-btn" class="btn-secondary">Template</button>
                             </div>
                         </div>
                         <div id="tools-list" class="skills-grid">
@@ -189,6 +196,16 @@
                         <div class="stat-card highlighted">
                             <span class="stat-label">Total Tokens</span>
                             <span id="usage-total" class="stat-value">0</span>
+                        </div>
+                    </div>
+
+                    <div class="card mt-20" id="model-stats-section">
+                        <div class="card-header-flex">
+                            <h3>Statistik per Model</h3>
+                            <span id="model-stats-count" class="badge">-</span>
+                        </div>
+                        <div id="model-stats-list" class="model-stats-grid">
+                            <!-- JS populated -->
                         </div>
                     </div>
                 </section>

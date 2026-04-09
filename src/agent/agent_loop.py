@@ -217,3 +217,7 @@ class AgentLoop:
     @property
     def session_id(self) -> str:
         return self._session_id
+
+    @property
+    def model_name(self) -> str:
+        return getattr(self._llm_client, '_model_name', 'unknown')

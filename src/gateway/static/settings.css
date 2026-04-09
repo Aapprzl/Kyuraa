@@ -417,6 +417,144 @@ body, html {
     gap: 16px;
 }
 
+/* Model Stats */
+.model-stats-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.model-stat-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: all 0.2s;
+}
+
+.model-stat-item:hover {
+    border-color: var(--accent-light);
+}
+
+.model-stat-item .model-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    word-break: break-all;
+}
+
+.model-stat-item .model-stat {
+    text-align: center;
+    min-width: 70px;
+}
+
+.model-stat-item .model-stat .label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.model-stat-item .model-stat .value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.model-stat-item .model-stat.total .value {
+    color: var(--accent);
+}
+
+.btn-delete-model {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-delete-model:hover {
+    background: var(--danger-text);
+    border-color: var(--danger-text);
+    color: white;
+}
+
+/* Confirm Modal */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.modal-overlay.show {
+    opacity: 1;
+}
+
+.modal-box {
+    width: 90%;
+    max-width: 360px;
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    transform: scale(0.95);
+    transition: transform 0.2s ease;
+}
+
+.modal-overlay.show .modal-box {
+    transform: scale(1);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.btn-modal-cancel {
+    padding: 10px 20px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-modal-cancel:hover {
+    background: var(--bg-hover);
+}
+
+.btn-modal-confirm {
+    padding: 10px 20px;
+    background: var(--danger-text);
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-modal-confirm:hover {
+    filter: brightness(1.1);
+}
+
 .stat-card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
