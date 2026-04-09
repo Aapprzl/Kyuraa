@@ -348,8 +348,12 @@ class GatewayServer:
             return {"status": "ok", "message": f"✅ Koneksi {provider} berhasil! Setting disimpan."}
 
         @self._app.get("/")
-        async def index():
+        async def get_index():
             return FileResponse("src/gateway/static/index.html")
+
+        @self._app.get("/settings-page")
+        async def get_settings_page():
+            return FileResponse("src/gateway/static/settings.html")
 
         @self._app.websocket("/ws/{session_id}")
         async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -612,13 +616,6 @@ class GatewayServer:
                 "message": "✅ Skill dinonaktifkan. Agent kembali ke mode asisten biasa.",
             }
 
-        @self._app.get("/skills/template")
-        async def get_skill_template():
-            file_path = "workspace/skills/SKILL_TEMPLATE.md"
-            if not Path(file_path).exists():
-                raise HTTPException(status_code=404, detail="Template tidak ditemukan")
-            return FileResponse(file_path, filename="SKILL_TEMPLATE.md")
-
         @self._app.get("/tools/template")
         async def get_tool_template():
             file_path = "workspace/tools/TOOL_TEMPLATE.py"
@@ -648,7 +645,6 @@ class GatewayServer:
 
         @self._app.get("/skills/template")
         async def get_skill_template(request: Request):
-            self._verify_token(request)
             template_path = Path("workspace/skills/SKILL_TEMPLATE.md")
             if not template_path.exists():
                 raise HTTPException(status_code=404, detail="Template file tidak ditemukan")

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengaturan - Kyuraa</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23D97757'/><text x='50' y='68' font-family='Inter, sans-serif' font-size='55' font-weight='600' fill='white' text-anchor='middle'>K</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('kyuraa_theme') || 'auto';
+            if (savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/settings.css">
+</head>
+<body>
+    <div id="settings-layout">
+        <aside id="settings-sidebar">
+            <div class="sidebar-header">
+                <button id="back-to-chat" class="back-btn">← Kembali ke Chat</button>
+                <h2>Pengaturan</h2>
+            </div>
+            <nav id="settings-nav">
+                <a href="#section-appearance" class="nav-item active">🎨 Tampilan</a>
+                <a href="#section-api" class="nav-item">🔑 Provider AI</a>
+                <a href="#section-skills" class="nav-item">⚡ Management Skill</a>
+                <a href="#section-stats" class="nav-item">📊 Statistik</a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="version-label">Kyuraa v1.0</span>
+            </div>
+        </aside>
+
+        <main id="settings-main">
+            <div class="container">
+                <!-- TEMPLATE APPEARANCE -->
+                <section id="section-appearance" class="settings-page-section">
+                    <h1>Tampilan</h1>
+                    <p class="section-desc">Sesuaikan bagaimana Kyuraa terlihat di layar Anda.</p>
+                    
+                    <div class="card">
+                        <h3>Tema Aplikasi</h3>
+                        <div class="theme-selector-grid" id="theme-selector">
+                            <div class="theme-option" data-value="light" onclick="setAppTheme('light')">
+                                <div class="theme-preview light"></div>
+                                <span>Ringan</span>
+                            </div>
+                            <div class="theme-option" data-value="auto" onclick="setAppTheme('auto')">
+                                <div class="theme-preview auto"></div>
+                                <span>Otomatis</span>
+                            </div>
+                            <div class="theme-option" data-value="dark" onclick="setAppTheme('dark')">
+                                <div class="theme-preview dark"></div>
+                                <span>Gelap</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- API CONFIGURATION -->
+                <section id="section-api" class="settings-page-section hidden">
+                    <h1>Provider AI</h1>
+                    <p class="section-desc">Atur kunci API dan model yang digunakan oleh Kyuraa.</p>
+                    
+                    <div class="grid-2">
+                        <!-- Google AI Card -->
+                        <div class="card provider-card" id="provider-google">
+                            <div class="card-header">
+                                <div class="provider-info">
+                                    <span class="provider-icon">💎</span>
+                                    <div>
+                                        <h3>Google AI (Gemini)</h3>
+                                        <span class="active-indicator hidden">Aktif</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label>Model</label>
+                                    <input type="text" id="setting-google-model" placeholder="Contoh: gemini-2.0-flash">
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key</label>
+                                    <div class="input-with-action">
+                                        <input type="password" id="setting-google-api-key" placeholder="Masukkan Google API Key...">
+                                        <button class="toggle-pw">👁</button>
+                                    </div>
+                                </div>
+                                <button class="btn-save save-provider-btn" data-provider="google">Simpan & Gunakan</button>
+                            </div>
+                        </div>
+
+                        <!-- OpenRouter Card -->
+                        <div class="card provider-card" id="provider-openrouter">
+                            <div class="card-header">
+                                <div class="provider-info">
+                                    <span class="provider-icon">🚀</span>
+                                    <div>
+                                        <h3>OpenRouter</h3>
+                                        <span class="active-indicator hidden">Aktif</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label>Model</label>
+                                    <input type="text" id="setting-or-model" placeholder="Contoh: qwen/qwen2.5-72b-instruct">
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key</label>
+                                    <div class="input-with-action">
+                                        <input type="password" id="setting-or-api-key" placeholder="Masukkan OpenRouter API Key...">
+                                        <button class="toggle-pw">👁</button>
+                                    </div>
+                                </div>
+                                <button class="btn-save save-provider-btn" data-provider="openrouter">Simpan & Gunakan</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SKILL MANAGEMENT -->
+                <section id="section-skills" class="settings-page-section hidden">
+                    <h1>Management Skill</h1>
+                    <p class="section-desc">Tambah atau ubah kemampuan khusus Kyuraa.</p>
+                    
+                    <div class="card">
+                        <div class="card-header-flex">
+                            <div id="skills-count-badge" class="badge">Memuat skills...</div>
+                            <div class="action-buttons">
+                                <button id="reload-skills-btn" class="btn-secondary">🔄 Refresh</button>
+                                <button id="download-template-btn" class="btn-secondary">📥 Template</button>
+                            </div>
+                        </div>
+                        <div id="skills-list" class="skills-grid">
+                            <!-- JS populated -->
+                        </div>
+                    </div>
+
+                    <div class="card mt-20">
+                        <div class="card-header-flex">
+                            <div id="tools-count-badge" class="badge">Memuat tools...</div>
+                            <div class="action-buttons">
+                                <button id="reload-tools-btn" class="btn-secondary">🔄 Refresh Tools</button>
+                                <button id="download-tool-template-btn" class="btn-secondary">📥 Template Tool</button>
+                            </div>
+                        </div>
+                        <div id="tools-list" class="skills-grid">
+                            <!-- JS populated -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STATISTICS -->
+                <section id="section-stats" class="settings-page-section hidden">
+                    <h1>Statistik Penggunaan</h1>
+                    <p class="section-desc">Pantau estimasi token dan biaya penggunaan API Anda.</p>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-label">Total Permintaan</span>
+                            <span id="usage-requests" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Input Tokens</span>
+                            <span id="usage-input" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Output Tokens</span>
+                            <span id="usage-output" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-card highlighted">
+                            <span class="stat-label">Total Tokens</span>
+                            <span id="usage-total" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script src="/static/settings.js"></script>
+</body>
+</html>

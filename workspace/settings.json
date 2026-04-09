@@ -6,7 +6,7 @@
     "GOOGLE_API_KEY": "enc:gAAAAABp06Cl6_qYShbSQs5g1hd00MG1k6QnRG8QFTWwNHjaSaRs2hOuMaT9OxXtRpz3XjxZsmDTOjiXdPS91QlU4b1_QSY9uCapoDe6XdmDpGZV3vHUKT7uCpZ4a-DvWxOMl-tYP6oL",
     "GOOGLE_MODEL": "gemini-2.5-flash",
     "TOOLS_STATE": {
-        "detect_language": true,
+        "detect_language": false,
         "read_file": true,
         "write_file": true,
         "save_translation": true,
@@ -15,5 +15,5 @@
         "open_output_folder": true,
         "word-counter": false
     },
-    "active_skill": "penerjemah-arab-indo"
+    "active_skill": "karya-ilmiah-pembimbing"
 }
