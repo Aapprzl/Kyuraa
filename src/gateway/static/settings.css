@@ -610,3 +610,120 @@ body, html {
         grid-template-columns: 1fr;
     }
 }
+
+/* Disconnect Modal */
+#disconnect-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+#disconnect-overlay.hidden {
+    display: none;
+}
+
+.disconnect-modal {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08);
+    animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    text-align: center;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.disconnect-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 auto 20px;
+}
+
+.disconnect-modal h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+}
+
+.disconnect-modal p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+.reconnect-status-box {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 10px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+.disconnect-actions {
+    display: flex;
+    gap: 12px;
+    flex-direction: column;
+}
+
+.disconnect-actions button {
+    width: 100%;
+    padding: 13px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.disconnect-actions .btn-primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+}
+
+.disconnect-actions .btn-primary:hover {
+    filter: brightness(1.1);
+}
+
+.disconnect-actions .btn-secondary {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.disconnect-actions .btn-secondary:hover {
+    background: var(--bg-hover);
+}

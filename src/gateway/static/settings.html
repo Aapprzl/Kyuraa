@@ -216,6 +216,20 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
+    <!-- Disconnect Overlay -->
+    <div id="disconnect-overlay" class="hidden">
+        <div class="disconnect-modal" role="dialog" aria-modal="true">
+            <div class="disconnect-icon">!</div>
+            <h2>Koneksi Terputus</h2>
+            <p>Server Kyuraa tidak merespons atau sedang offline.</p>
+            <div id="reconnect-status" class="reconnect-status-box">Memeriksa koneksi...</div>
+            <div class="disconnect-actions">
+                <button id="reconnect-btn" class="btn-primary">Sambung Ulang</button>
+                <button id="reload-btn" class="btn-secondary">Reload Halaman</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/settings.js"></script>
 </body>
 </html>

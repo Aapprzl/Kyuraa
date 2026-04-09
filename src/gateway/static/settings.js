@@ -27,8 +27,57 @@
     const navItems = document.querySelectorAll('.nav-item');
     const sections = document.querySelectorAll('.settings-page-section');
     const toastContainer = document.getElementById('toast-container');
+    const disconnectOverlay = document.getElementById('disconnect-overlay');
+    const reconnectStatus = document.getElementById('reconnect-status');
 
     let usageChart = null;
+    let heartbeatInterval = null;
+    let isDisconnected = false;
+
+    // 2b. Heartbeat & Disconnect Logic
+    function showDisconnectOverlay() {
+        if (!isDisconnected && disconnectOverlay) {
+            isDisconnected = true;
+            disconnectOverlay.classList.remove('hidden');
+            reconnectStatus.textContent = 'Memeriksa koneksi...';
+        }
+    }
+
+    function hideDisconnectOverlay() {
+        if (isDisconnected && disconnectOverlay) {
+            isDisconnected = false;
+            disconnectOverlay.classList.add('hidden');
+        }
+    }
+
+    async function checkHeartbeat() {
+        if (!gatewayToken) return;
+        try {
+            const res = await fetch('/health', {
+                headers: { 'X-API-Key': gatewayToken }
+            });
+            if (res.ok) {
+                hideDisconnectOverlay();
+            } else {
+                showDisconnectOverlay();
+            }
+        } catch (e) {
+            showDisconnectOverlay();
+        }
+    }
+
+    function startHeartbeat() {
+        if (heartbeatInterval) return;
+        checkHeartbeat();
+        heartbeatInterval = setInterval(checkHeartbeat, 5000);
+    }
+
+    function stopHeartbeat() {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
+    }
 
     // 3. Navigation Logic
     backBtn.addEventListener('click', () => {
@@ -486,6 +535,19 @@
             loadUsageChart();
             loadModelStats();
         }
+        
+        // Start heartbeat check
+        startHeartbeat();
+        window.addEventListener('beforeunload', stopHeartbeat);
+        
+        // Setup Disconnect Overlay buttons
+        document.getElementById('reconnect-btn').onclick = () => {
+            reconnectStatus.textContent = 'Memeriksa koneksi...';
+            checkHeartbeat();
+        };
+        document.getElementById('reload-btn').onclick = () => {
+            window.location.reload();
+        };
         
         // Setup Button Handlers
         document.getElementById('reload-skills-btn').onclick = async () => {
