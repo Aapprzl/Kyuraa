@@ -28,6 +28,8 @@
     const sections = document.querySelectorAll('.settings-page-section');
     const toastContainer = document.getElementById('toast-container');
 
+    let usageChart = null;
+
     // 3. Navigation Logic
     backBtn.addEventListener('click', () => {
         window.location.href = `/?token=${gatewayToken}`;
@@ -44,7 +46,10 @@
             
             // Show target section
             sections.forEach(sec => {
-                if (sec.id === targetId) sec.classList.remove('hidden');
+                if (sec.id === targetId) {
+                    sec.classList.remove('hidden');
+                    if (targetId === 'section-stats') loadUsageChart();
+                }
                 else sec.classList.add('hidden');
             });
         });
@@ -73,6 +78,7 @@
         else document.documentElement.removeAttribute('data-theme');
         
         updateThemeUI(theme);
+        if (usageChart) loadUsageChart(); // Update chart colors
     }
 
     function updateThemeUI(theme) {
@@ -250,12 +256,117 @@
         } catch (e) {}
     }
 
+    async function loadUsageChart() {
+        const ctx = document.getElementById('usageChart');
+        if (!ctx) return;
+
+        try {
+            const res = await fetch('/stats/history?days=7', { headers: { 'X-API-Key': gatewayToken } });
+            const data = await res.json();
+
+            // Prepare labels and datasets (force some labels even if data is short)
+            const labels = data.map(d => {
+                const date = new Date(d.date);
+                return date.toLocaleDateString('id-ID', { weekday: 'short' });
+            });
+            const tokens = data.map(d => d.total_tokens || (d.input_tokens + d.output_tokens));
+            const requests = data.map(d => d.requests);
+
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#a0a0a0' : '#666';
+            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+            if (usageChart) usageChart.destroy();
+
+            usageChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels.length ? labels : ['-'],
+                    datasets: [
+                        {
+                            label: 'Total Tokens',
+                            data: tokens.length ? tokens : [0],
+                            borderColor: '#D97757',
+                            backgroundColor: 'rgba(217, 119, 87, 0.1)',
+                            borderWidth: 3,
+                            pointBackgroundColor: '#D97757',
+                            pointRadius: 4,
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Requests',
+                            data: requests.length ? requests : [0],
+                            type: 'bar',
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                            borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            pointBackgroundColor: isDark ? '#ffffff' : '#333333',
+                            pointBorderColor: isDark ? '#ffffff' : '#333333',
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? '#2a2a2a' : '#fff',
+                            titleColor: isDark ? '#fff' : '#000',
+                            bodyColor: isDark ? '#ccc' : '#444',
+                            borderColor: isDark ? '#444' : '#e0e0e0',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: gridColor, drawBorder: false },
+                            ticks: { color: textColor, font: { size: 11 } }
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            position: 'right',
+                            grid: { display: false },
+                            ticks: { color: textColor, font: { size: 11 } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: textColor, font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        } catch (e) { console.error('Failed to load chart:', e); }
+    }
+
     // 9. Initial Load
     function init() {
         loadApiSettings();
         loadSkills();
         loadTools();
         loadStats();
+        
+        // Cek jika hash ada di URL dan aktifkan section yang sesuai
+        const hash = window.location.hash;
+        if (hash) {
+            const navItem = document.querySelector(`.nav-item[href="${hash}"]`);
+            if (navItem) {
+                navItem.click();
+            }
+        } else {
+            // Load chart jika Statistik adalah default (walaupun bukan default, ini aman)
+            loadUsageChart();
+        }
         
         // Setup Button Handlers
         document.getElementById('reload-skills-btn').onclick = async () => {

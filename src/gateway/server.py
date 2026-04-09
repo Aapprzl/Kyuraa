@@ -15,6 +15,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.utils.logger import log
 from src.utils.security import SecurityManager
+from src.memory.usage_store import UsageStore
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -166,11 +167,8 @@ class GatewayServer:
         self._running = False
         self._session_buffers: dict[str, list[str]] = {}
         self._active_skill: str | None = None
-        self._stats = {
-            'total_requests': 0,
-            'input_tokens': 0,
-            'output_tokens': 0
-        }
+        
+        self._usage_store = UsageStore()
 
         # Sajikan file statis (style.css, script.js, dll.)
         self._app.mount("/static", StaticFiles(directory="src/gateway/static"), name="static")
@@ -224,12 +222,12 @@ class GatewayServer:
         @self._app.get("/stats")
         async def get_stats(request: Request):
             self._verify_token(request)
-            return {
-                "total_requests": self._stats['total_requests'],
-                "input_tokens": self._stats['input_tokens'],
-                "output_tokens": self._stats['output_tokens'],
-                "total_tokens": self._stats['input_tokens'] + self._stats['output_tokens'],
-            }
+            return self._usage_store.get_totals()
+
+        @self._app.get("/stats/history")
+        async def get_stats_history(request: Request, days: int = 7):
+            self._verify_token(request)
+            return self._usage_store.get_daily_usage(days)
 
         @self._app.get("/settings")
         async def get_settings(request: Request):
@@ -418,9 +416,14 @@ class GatewayServer:
                             input_tokens = max(1, len(user_input) // 4)
                             output_tokens = max(1, len("".join(self._session_buffers.get(session_id, []))) // 4)
 
-                        self._stats['total_requests'] += 1
-                        self._stats['input_tokens'] += input_tokens
-                        self._stats['output_tokens'] += output_tokens
+                        self._usage_store.log_usage(
+                            session_id=session_id,
+                            provider=os.environ.get("ACTIVE_PROVIDER", "google"),
+                            model=agent._model_name if hasattr(agent, "_model_name") else "unknown",
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            status="success"
+                        )
 
                         await websocket.send_json({
                             "type": "done",
@@ -790,7 +793,7 @@ def main():
             with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
                 for key, value in settings.items():
-                    os.environ[key] = value
+                    os.environ[key] = str(value)
             log("gateway", f"Loaded config from {settings_path}")
         except Exception as e:
             log("error", f"Error loading settings.json: {e}")
