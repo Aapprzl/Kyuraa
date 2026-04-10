@@ -190,6 +190,16 @@
             const pageInfo = metadata.page_count ? `${metadata.page_count} halaman` : '';
             const scriptInfo = metadata.script ? ` · ${metadata.script}` : '';
             
+            const hasText = metadata.text && metadata.text.trim().length > 0;
+            const viewScanBtn = hasText ? `
+                <div class="bubble-file-actions">
+                    <button class="btn-view-scan">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Lihat Hasil Scan
+                    </button>
+                </div>
+            ` : '';
+
             return `
                 <div class="bubble-file-card">
                     <div class="bubble-file-icon">PDF</div>
@@ -197,6 +207,7 @@
                         <div class="bubble-file-name" title="${escapeHtml(metadata.filename)}">${escapeHtml(metadata.filename)}</div>
                         <div class="bubble-file-meta">${pageInfo}${scriptInfo}</div>
                     </div>
+                    ${viewScanBtn}
                 </div>
             `;
         }
@@ -336,6 +347,15 @@
                 const formData = new FormData();
                 formData.append('file', file);
                 
+                showToast('Mengunggah & memindai PDF (Mohon tunggu, ada OCR jika file berupa scan)...', 'info', 0);
+                
+                // UI Loading State
+                const originalUploadHTML = uploadBtn.innerHTML;
+                uploadBtn.classList.add('uploading');
+                uploadBtn.innerHTML = `<svg class="spin-anim" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>`;
+                fileInput.disabled = true;
+                if (window.sendBtn) sendBtn.disabled = true;
+                
                 try {
                     const res = await fetch('/upload', {
                         method: 'POST',
@@ -374,6 +394,12 @@
                     
                 } catch (e) {
                     showToast('Gagal upload file', 'error');
+                } finally {
+                    // Restore UI
+                    uploadBtn.classList.remove('uploading');
+                    uploadBtn.innerHTML = originalUploadHTML;
+                    fileInput.disabled = false;
+                    if (window.sendBtn) sendBtn.disabled = false;
                 }
                 
                 e.target.value = '';
@@ -407,8 +433,14 @@
         if (lfSendPartial) {
             lfSendPartial.onclick = async () => {
                 hideLargeFileWarning();
-                showToast('Memuat halaman pertama...', 'info');
+                showToast('Memuat halaman (Mohon tunggu, ada OCR jika file berupa scan)...', 'info', 0);
                 
+                const originalUploadHTML = uploadBtn.innerHTML;
+                uploadBtn.classList.add('uploading');
+                uploadBtn.innerHTML = `<svg class="spin-anim" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>`;
+                fileInput.disabled = true;
+                if (window.sendBtn) sendBtn.disabled = true;
+
                 try {
                     const res = await fetch('/upload/partial', {
                         method: 'POST',
@@ -441,6 +473,11 @@
                     
                 } catch (e) {
                     showToast('Gagal mengambil halaman', 'error');
+                } finally {
+                    uploadBtn.classList.remove('uploading');
+                    uploadBtn.innerHTML = originalUploadHTML;
+                    fileInput.disabled = false;
+                    if (window.sendBtn) sendBtn.disabled = false;
                 }
             };
         }
@@ -834,6 +871,12 @@
             // Fix XSS
             const copyBtn = div.querySelector('.bubble-copy-btn');
             copyBtn.addEventListener('click', () => copyToClipboard(text || '', copyBtn));
+
+            const viewBtn = div.querySelector('.btn-view-scan');
+            if (viewBtn && metadata) {
+                viewBtn.addEventListener('click', () => showOCRModal(metadata));
+            }
+
             messagesContainer.appendChild(div);
             scrollToBottom();
         }
@@ -1321,9 +1364,52 @@
         });
 
 
-        // ============================================
-        // INITIALIZE
-        // ============================================
+        // OCR Modal Logic
+        const ocrModal = document.getElementById('ocr-modal');
+        const ocrContent = document.getElementById('ocr-content');
+        const ocrFilename = document.getElementById('ocr-filename');
+        const ocrCloseBtn = document.getElementById('ocr-close-btn');
+        const ocrCloseTop = document.getElementById('ocr-close-top');
+        const ocrCopyBtn = document.getElementById('ocr-copy-btn');
+
+        function showOCRModal(metadata) {
+            if (!metadata || !metadata.text) return;
+            
+            ocrFilename.textContent = metadata.filename || 'Berkas Tanpa Nama';
+            ocrContent.textContent = metadata.text;
+            
+            // Set direction based on script
+            if (metadata.script === 'arabic') {
+                ocrContent.setAttribute('dir', 'rtl');
+            } else {
+                ocrContent.setAttribute('dir', 'ltr');
+            }
+            
+            ocrModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent scroll
+        }
+
+        function hideOCRModal() {
+            ocrModal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        ocrCloseBtn.addEventListener('click', hideOCRModal);
+        ocrCloseTop.addEventListener('click', hideOCRModal);
+        ocrModal.querySelector('.ocr-backdrop').addEventListener('click', hideOCRModal);
+
+        ocrCopyBtn.addEventListener('click', () => {
+            const text = ocrContent.textContent;
+            copyToClipboard(text, ocrCopyBtn);
+            
+            const originalText = ocrCopyBtn.textContent;
+            ocrCopyBtn.textContent = 'Teks Berhasil Disalin!';
+            setTimeout(() => {
+                ocrCopyBtn.textContent = originalText;
+            }, 2000);
+        });
+
+        // Initialize
         async function init() {
             await loadSessions();
             await fetchModelInfo();
@@ -1337,9 +1423,7 @@
 
         init();
 
-        // ============================================
-        // THEME MANAGEMENT
-        // ============================================
+        // Theme Management
         function setAppTheme(theme) {
             localStorage.setItem('kyuraa_theme', theme);
             let isDark = false;
@@ -1355,7 +1439,6 @@
             }
         }
         
-        // Listen for OS theme changes for auto mode
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
             const savedTheme = localStorage.getItem('kyuraa_theme') || 'auto';
             if (savedTheme === 'auto') {
@@ -1364,9 +1447,8 @@
             }
         });
 
-
-
-        // Expose functions to global scope for onclick handlers
+        // Expose functions to global scope
         window.deleteSession = deleteSession;
         window.setAppTheme = setAppTheme;
         window.openSettings = openSettings;
+        window.showOCRModal = showOCRModal;

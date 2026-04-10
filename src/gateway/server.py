@@ -272,7 +272,8 @@ class GatewayServer:
                     f.write(content)
                 
                 from src.tools.pdf_processor import extract_text_from_pdf, estimate_tokens
-                analysis = extract_text_from_pdf(str(file_path))
+                import asyncio
+                analysis = await asyncio.to_thread(extract_text_from_pdf, str(file_path))
                 
                 estimated_tokens = estimate_tokens(analysis["text"])
                 MAX_PDF_TOKENS = 25000
@@ -318,7 +319,8 @@ class GatewayServer:
                     raise HTTPException(404, "File tidak ditemukan")
                 
                 from src.tools.pdf_processor import extract_text_from_pdf, estimate_tokens
-                analysis = extract_text_from_pdf(str(file_path), page_start, page_end)
+                import asyncio
+                analysis = await asyncio.to_thread(extract_text_from_pdf, str(file_path), page_start, page_end)
                 
                 estimated_tokens = estimate_tokens(analysis["text"])
                 MAX_PDF_TOKENS = 25000

@@ -179,6 +179,27 @@
         </div>
     </div>
 
+    <!-- OCR Result Modal -->
+    <div id='ocr-modal' class='hidden'>
+        <div class='ocr-backdrop'></div>
+        <div class='ocr-dialog'>
+            <div class='ocr-header'>
+                <h3>Hasil Ekstraksi OCR</h3>
+                <button id='ocr-close-top' title='Tutup'>&times;</button>
+            </div>
+            <div class='ocr-meta-info'>
+                <span id='ocr-filename'>nama_file.pdf</span>
+            </div>
+            <div id='ocr-content-wrapper'>
+                <div id='ocr-content' dir='auto'></div>
+            </div>
+            <div class='ocr-footer'>
+                <button id='ocr-copy-btn' class='btn-primary'>Salin Semua Teks</button>
+                <button id='ocr-close-btn' class='btn-secondary'>Tutup</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/script.js" defer></script>
 </body>
 </html>

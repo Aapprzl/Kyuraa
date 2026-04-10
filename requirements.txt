@@ -12,6 +12,8 @@ pyyaml>=6.0                   # Baca frontmatter SKILL.md
 python-frontmatter>=1.1.0    # Parse YAML frontmatter markdown
 python-dotenv>=1.0.0         # Load API key dari .env
 pdfplumber>=0.11.0           # Ekstrak teks dari PDF
+PyMuPDF>=1.23.0              # Render PDF ke gambar (Fast OCR base)
+easyocr>=1.7.0               # OCR Lokal (Multilingual + Arab)
 
 # Utilities
 aiofiles>=23.0                # Async file I/O
