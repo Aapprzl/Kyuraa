@@ -5,11 +5,13 @@ openai>=1.0.0                # OpenRouter (OpenAI-compatible API)
 fastapi>=0.111.0              # Gateway server
 uvicorn[standard]>=0.29.0    # ASGI server
 websockets>=12.0             # WebSocket support
+python-multipart>=0.0.6      # Form parsing for file uploads
 
 # Data & Parsing
 pyyaml>=6.0                   # Baca frontmatter SKILL.md
 python-frontmatter>=1.1.0    # Parse YAML frontmatter markdown
 python-dotenv>=1.0.0         # Load API key dari .env
+pdfplumber>=0.11.0           # Ekstrak teks dari PDF
 
 # Utilities
 aiofiles>=23.0                # Async file I/O

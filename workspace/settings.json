@@ -1,10 +1,10 @@
 {
-    "OPENROUTER_API_KEY": "enc:gAAAAABp17Cesme5Icc9orwewyuS9iiPgtzzz1Z-_2VkrMzFzrjPt_B7nYXoLqknGgAhhqPgOIZQSUireL-zJmXsnn2n9ytO5pJLsSxEDBYPbCIJAGClzyE_JgVidFnBKvKX8sPG56L_io-5KFhe837zI7X72DNSGnq-lzHBqfkGWoW0JOh2f2s=",
+    "OPENROUTER_API_KEY": "enc:gAAAAABp183P1fdlVtqM7OCTOCsXxUkYnCVTcSrJb4-4nUkitYaKownils5OnM_j6cfg19CmhQEAlUHbOHyH2Tg0DUOZ9si7m-N6XgB_5Rr5iydLLbHYF5qYGRRa3zOFC2qTI4Spb1lv4qffEUg-wWENSq_W2KQ9J2hq6iuWtFhoJ5XbmyYylZc=",
     "OPENROUTER_MODEL": "nvidia/nemotron-3-nano-30b-a3b:free",
     "ACTIVE_PROVIDER": "google",
-    "AGENT_MODEL": "gemini-2.5-flash",
-    "GOOGLE_API_KEY": "enc:gAAAAABp18HXdnhNue6ePBdrPlSjknMv5dbtvub3O6dY33hJRoOI13DTMbsxNgL_7hIfhYs8pOckRGF-GCrMnyokAkHpzRGDkSTv5yfYb6I_i3PFD2oRfU10RdbR8fMKetSvfYxtZx-b",
-    "GOOGLE_MODEL": "gemini-2.5-flash",
+    "AGENT_MODEL": "gemini-3-flash-preview",
+    "GOOGLE_API_KEY": "enc:gAAAAABp2EcgqF529guYmCNHgDNQ58rYY51iBDeywmtVVnqwzXBCyDo0A6Zog8uNFbZulh7VEyfmFsIxuOnObBwX8dOhZPIOLF8EiUjIpKOYbP7X52SJq9mzy5YIQ94xLfkPtaCm_zaP",
+    "GOOGLE_MODEL": "gemini-3-flash-preview",
     "TOOLS_STATE": {
         "detect_language": true,
         "read_file": true,

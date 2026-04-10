@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +38,7 @@ class SessionStore:
                     session_id TEXT NOT NULL,
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
+                    metadata TEXT,
                     timestamp DATETIME,
                     token_count INTEGER,
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
@@ -49,6 +51,10 @@ class SessionStore:
                 pass  # Kolom sudah ada
             try:
                 conn.execute("ALTER TABLE messages ADD COLUMN timestamp TEXT")
+            except Exception:
+                pass  # Kolom sudah ada
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN metadata TEXT")
             except Exception:
                 pass  # Kolom sudah ada
             conn.commit()
@@ -64,15 +70,17 @@ class SessionStore:
         log("memory", f"New session created: {session_id}")
         return {"session_id": session_id, "created_at": now, "updated_at": now}
 
-    def add_message(self, session_id: str, role: str, content: str, token_count: int | None = None) -> bool:
+    def add_message(self, session_id: str, role: str, content: str, token_count: int | None = None, metadata: dict | None = None) -> bool:
         if role not in ("user", "assistant"):
             return False
 
         now = datetime.now().isoformat()
+        meta_json = json.dumps(metadata) if metadata else None
+        
         with self._get_conn() as conn:
             conn.execute(
-                "INSERT INTO messages (session_id, role, content, timestamp, token_count) VALUES (?, ?, ?, ?, ?)",
-                (session_id, role, content, now, token_count)
+                "INSERT INTO messages (session_id, role, content, metadata, timestamp, token_count) VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, role, content, meta_json, now, token_count)
             )
             conn.execute(
                 "UPDATE sessions SET updated_at = ? WHERE session_id = ?",
@@ -100,14 +108,24 @@ class SessionStore:
         with self._get_conn() as conn:
             rows = conn.execute(
                 """
-                SELECT id, session_id, role, content, timestamp, token_count FROM messages
+                SELECT id, session_id, role, content, metadata, timestamp, token_count FROM messages
                 WHERE session_id = ?
                 ORDER BY id DESC
                 LIMIT ?
                 """,
                 (session_id, limit)
             ).fetchall()
-        return [dict(row) for row in reversed(rows)]
+            
+        result = []
+        for row in reversed(rows):
+            d = dict(row)
+            if d.get("metadata"):
+                try:
+                    d["metadata"] = json.loads(d["metadata"])
+                except Exception:
+                    d["metadata"] = None
+            result.append(d)
+        return result
 
     def clear_session(self, session_id: str) -> bool:
         with self._get_conn() as conn:
@@ -145,13 +163,23 @@ class SessionStore:
         with self._get_conn() as conn:
             rows = conn.execute(
                 """
-                SELECT role, content, timestamp FROM messages
+                SELECT role, content, metadata, timestamp FROM messages
                 WHERE session_id = ?
                 ORDER BY id ASC
                 """,
                 (session_id,)
             ).fetchall()
-        return [dict(row) for row in rows]
+        
+        result = []
+        for row in rows:
+            d = dict(row)
+            if d.get("metadata"):
+                try:
+                    d["metadata"] = json.loads(d["metadata"])
+                except Exception:
+                    d["metadata"] = None
+            result.append(d)
+        return result
 
     def update_session_name(self, session_id: str, name: str) -> bool:
         now = datetime.now().isoformat()

@@ -60,13 +60,13 @@ class AgentLoop:
             return "semi-formal"
         return "non-formal"
 
-    def run(self, user_input: str) -> dict[str, Any]:
+    def run(self, user_input: str, metadata: dict | None = None) -> dict[str, Any]:
         log("agent", f"Processing request — session: {self._session_id}")
 
         lang = self._detect_language(user_input)
         style = self._detect_style(user_input)
 
-        self._session_store.add_message(self._session_id, "user", user_input)
+        self._session_store.add_message(self._session_id, "user", user_input, metadata=metadata)
         history = self._session_store.get_history(self._session_id, limit=20)
 
         needed_refs = self._prompt_builder.detect_needed_references(user_input, self._skill_manager)
@@ -76,7 +76,7 @@ class AgentLoop:
             self._skill_manager, references, self._tool_registry
         )
 
-        messages = self._prompt_builder.build_messages(history, user_input)
+        messages = self._prompt_builder.build_messages(history, user_input, current_metadata=metadata)
 
         response = self._llm_client.chat(system=system, messages=messages)
         assistant_content = response.get("content", "")
@@ -101,13 +101,13 @@ class AgentLoop:
             "finish_reason": finish_reason,
         }
 
-    def run_stream(self, user_input: str) -> Generator[tuple[str, dict | None], None, dict[str, Any]]:
+    def run_stream(self, user_input: str, metadata: dict | None = None) -> Generator[tuple[str, dict | None], None, dict[str, Any]]:
         log("agent", f"Processing request — session: {self._session_id}")
 
         lang = self._detect_language(user_input)
         style = self._detect_style(user_input)
 
-        self._session_store.add_message(self._session_id, "user", user_input)
+        self._session_store.add_message(self._session_id, "user", user_input, metadata=metadata)
         history = self._session_store.get_history(self._session_id, limit=20)
 
         needed_refs = self._prompt_builder.detect_needed_references(user_input, self._skill_manager)
@@ -117,7 +117,7 @@ class AgentLoop:
             self._skill_manager, references, self._tool_registry
         )
 
-        messages = self._prompt_builder.build_messages(history, user_input)
+        messages = self._prompt_builder.build_messages(history, user_input, current_metadata=metadata)
 
         full_response = []
         captured_usage = None

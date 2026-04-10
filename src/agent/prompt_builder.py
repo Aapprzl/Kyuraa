@@ -1,5 +1,8 @@
 
 
+from typing import Any
+
+
 class PromptBuilder:
     def __init__(self):
         pass
@@ -61,17 +64,63 @@ Sistem akan otomatis mengeksekusi tool tersebut dan memberikan hasilnya kepadamu
 
     def build_messages(
         self,
-        session_history: list[dict[str, str]],
-        user_input: str
+        session_history: list[dict[str, Any]],
+        user_input: str,
+        current_metadata: dict | None = None
     ) -> list[dict[str, str]]:
         messages = []
 
         for msg in session_history:
             role = msg.get("role", "user")
             content = msg.get("content", "")
+            metadata = msg.get("metadata")
+
+            # Jika ada metadata file, format kontennya
+            if metadata and isinstance(metadata, dict) and metadata.get("filename"):
+                filename = metadata.get("filename", "file-unknown")
+                script = metadata.get("script", "unknown")
+                file_text = metadata.get("text", "")
+                
+                if file_text.strip():
+                    content = f"""[CONTEXT - File: {filename}]
+Script: {script}
+--- FILE CONTENT START ---
+{file_text}
+--- FILE CONTENT END ---
+
+[USER MESSAGE]: {content}"""
+                else:
+                    content = f"""[CONTEXT - File: {filename}]
+[SISTEM INFO: File PDF ini adalah hasil scan/gambar gambar biner. Teks tidak bisa diekstrak. 
+INSTRUKSI WAJIB: Beritahu user secara langsung bahwa Anda tidak dapat membaca PDF hasil scan/gambar. Dilarang menggunakan tool apapun untuk mencoba mencari atau membaca file ini.]
+
+[USER MESSAGE]: {content}"""
+
             messages.append({"role": role, "content": content})
 
-        messages.append({"role": "user", "content": user_input})
+        # Tambahkan input terbaru
+        final_input = user_input
+        if current_metadata and isinstance(current_metadata, dict) and current_metadata.get("filename"):
+            filename = current_metadata.get("filename", "file-unknown")
+            script = current_metadata.get("script", "unknown")
+            file_text = current_metadata.get("text", "")
+            
+            if file_text.strip():
+                final_input = f"""[CONTEXT - File: {filename}]
+Script: {script}
+--- FILE CONTENT START ---
+{file_text}
+--- FILE CONTENT END ---
+
+[USER MESSAGE]: {user_input}"""
+            else:
+                final_input = f"""[CONTEXT - File: {filename}]
+[SISTEM INFO: File PDF ini adalah hasil scan/gambar biner. Teks tidak bisa diekstrak. 
+INSTRUKSI WAJIB: Beritahu user secara langsung bahwa Anda tidak dapat membaca PDF hasil scan/gambar. Dilarang menggunakan tool apapun untuk mencoba mencari atau membaca file ini.]
+
+[USER MESSAGE]: {user_input}"""
+
+        messages.append({"role": "user", "content": final_input})
 
         return messages
 

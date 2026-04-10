@@ -170,6 +170,10 @@ class GatewayServer:
         
         self._usage_store = UsageStore()
 
+        # Upload directory for PDF files
+        self._upload_dir = Path("workspace/tempat_baca/uploaded_pdfs")
+        self._upload_dir.mkdir(parents=True, exist_ok=True)
+
         # Sajikan file statis (style.css, script.js, dll.)
         self._app.mount("/static", StaticFiles(directory="src/gateway/static"), name="static")
 
@@ -243,6 +247,119 @@ class GatewayServer:
                 return {"deleted": 0}
             deleted = self._usage_store.clear_by_models(models)
             return {"deleted": deleted}
+
+        @self._app.post("/upload")
+        async def upload_pdf(request: Request):
+            self._verify_token(request)
+            try:
+                form = await request.form()
+                file = list(form.values())[0]
+                
+                if not file.filename.lower().endswith('.pdf'):
+                    raise HTTPException(400, "Hanya file PDF yang diizinkan")
+                
+                import uuid
+                safe_name = f"{uuid.uuid4().hex}_{file.filename}"
+                file_path = self._upload_dir / safe_name
+                
+                content = await file.read()
+                
+                MAX_FILE_SIZE = 5 * 1024 * 1024
+                if len(content) > MAX_FILE_SIZE:
+                    raise HTTPException(400, "File terlalu besar (max 5MB)")
+                
+                with open(file_path, "wb") as f:
+                    f.write(content)
+                
+                from src.tools.pdf_processor import extract_text_from_pdf, estimate_tokens
+                analysis = extract_text_from_pdf(str(file_path))
+                
+                estimated_tokens = estimate_tokens(analysis["text"])
+                MAX_PDF_TOKENS = 25000
+                
+                text_len = len(analysis["text"]) if analysis["text"] else 0
+                log("upload", f"PDF uploaded: {file.filename} | pages: {analysis['page_count']} | words: {analysis['word_count']} | chars: {text_len} | script: {analysis['script']} | tokens: {estimated_tokens}")
+                
+                return {
+                    "success": True,
+                    "file_id": safe_name,
+                    "filename": file.filename,
+                    "page_count": analysis["page_count"],
+                    "word_count": analysis["word_count"],
+                    "script": analysis["script"],
+                    "text": analysis["text"],
+                    "text_preview": analysis["text"][:500] if analysis["text"] else "",
+                    "estimated_tokens": estimated_tokens,
+                    "exceeds_limit": estimated_tokens > MAX_PDF_TOKENS,
+                    "max_tokens": MAX_PDF_TOKENS,
+                    "warnings": analysis["warnings"]
+                }
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                log("error", f"Upload error: {e}")
+                raise HTTPException(500, f"Gagal upload: {str(e)}")
+
+        @self._app.post("/upload/partial")
+        async def upload_pdf_partial(request: Request):
+            self._verify_token(request)
+            try:
+                body = await request.json()
+                file_id = body.get("file_id")
+                page_start = body.get("page_start", 1)
+                page_end = body.get("page_end")
+                
+                if not file_id:
+                    raise HTTPException(400, "file_id diperlukan")
+                
+                file_path = self._upload_dir / file_id
+                if not file_path.exists():
+                    raise HTTPException(404, "File tidak ditemukan")
+                
+                from src.tools.pdf_processor import extract_text_from_pdf, estimate_tokens
+                analysis = extract_text_from_pdf(str(file_path), page_start, page_end)
+                
+                estimated_tokens = estimate_tokens(analysis["text"])
+                MAX_PDF_TOKENS = 25000
+                
+                return {
+                    "success": True,
+                    "file_id": file_id,
+                    "page_start": page_start,
+                    "page_end": page_end,
+                    "page_count": analysis["page_count"],
+                    "word_count": analysis["word_count"],
+                    "script": analysis["script"],
+                    "text": analysis["text"],
+                    "estimated_tokens": estimated_tokens,
+                    "exceeds_limit": estimated_tokens > MAX_PDF_TOKENS,
+                    "max_tokens": MAX_PDF_TOKENS,
+                    "warnings": analysis["warnings"]
+                }
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                log("error", f"Partial upload error: {e}")
+                raise HTTPException(500, f"Gagal extract halaman: {str(e)}")
+
+        @self._app.get("/upload/{file_id}")
+        async def get_uploaded_file(request: Request, file_id: str):
+            self._verify_token(request)
+            file_path = self._upload_dir / file_id
+            if not file_path.exists():
+                raise HTTPException(404, "File tidak ditemukan")
+            return FileResponse(str(file_path), media_type="application/pdf", filename=file_path.name)
+
+        @self._app.delete("/upload/{file_id}")
+        async def delete_uploaded_file(request: Request, file_id: str):
+            self._verify_token(request)
+            file_path = self._upload_dir / file_id
+            if not file_path.exists():
+                raise HTTPException(404, "File tidak ditemukan")
+            file_path.unlink()
+            return {"success": True, "deleted": file_id}
 
         @self._app.get("/settings")
         async def get_settings(request: Request):
@@ -397,11 +514,22 @@ class GatewayServer:
 
                     if msg_type == "message":
                         user_input = message.get("content", "")
+                        file_context = message.get("file_context", None)
+                        
+                        # Log file context status
+                        has_file = file_context is not None and bool(file_context.get("text"))
+                        if has_file:
+                            log("upload", f"File context received: {file_context.get('filename', 'unknown')} | text length: {len(file_context.get('text', ''))} chars")
+                        else:
+                            log("upload", "No file context - sending plain message")
+                        
                         self._session_buffers[session_id] = []
 
                         captured_usage = None
                         captured_finish_reason = None
-                        for item in agent.run_stream(user_input):
+                        
+                        # Pass metadata (file_context) directly to the agent
+                        for item in agent.run_stream(user_input, metadata=file_context):
                             token = item[0] if hasattr(item, '__getitem__') else item
                             usage = item[1] if (hasattr(item, '__len__') and len(item) > 1) else None
                             finish_reason = item[2] if (hasattr(item, '__len__') and len(item) > 2) else None
@@ -428,7 +556,8 @@ class GatewayServer:
                             input_tokens = captured_usage.prompt_tokens if hasattr(captured_usage, "prompt_tokens") else captured_usage.get("prompt_tokens", 0)
                             output_tokens = captured_usage.completion_tokens if hasattr(captured_usage, "completion_tokens") else captured_usage.get("completion_tokens", 0)
                         else:
-                            input_tokens = max(1, len(user_input) // 4)
+                            # Fallback estimation
+                            input_tokens = max(1, (len(user_input) + (len(file_context.get("text", "")) if has_file else 0)) // 4)
                             output_tokens = max(1, len("".join(self._session_buffers.get(session_id, []))) // 4)
 
                         self._usage_store.log_usage(

@@ -21,6 +21,9 @@
         let reconnectAttempts = 0;
         let reconnectTimer = null;
         let disconnectOverlayTimer = null;
+        
+        // File upload state
+        let pendingFile = null;  // {file_id, filename, text, script, page_count, word_count}
 
         // Security Token — support ?token=xxx URL param for easy injection
         (function() {
@@ -182,6 +185,22 @@
             return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
         }
 
+        function renderFileCard(metadata) {
+            if (!metadata || !metadata.filename) return '';
+            const pageInfo = metadata.page_count ? `${metadata.page_count} halaman` : '';
+            const scriptInfo = metadata.script ? ` · ${metadata.script}` : '';
+            
+            return `
+                <div class="bubble-file-card">
+                    <div class="bubble-file-icon">PDF</div>
+                    <div class="bubble-file-info">
+                        <div class="bubble-file-name" title="${escapeHtml(metadata.filename)}">${escapeHtml(metadata.filename)}</div>
+                        <div class="bubble-file-meta">${pageInfo}${scriptInfo}</div>
+                    </div>
+                </div>
+            `;
+        }
+
         // ============================================
         // SKILL MANAGEMENT
         // ============================================
@@ -247,6 +266,192 @@
             } catch (e) {
                 console.error('Failed to deactivate skill');
             }
+        }
+
+        // ============================================
+        // FILE UPLOAD
+        // ============================================
+        function showFilePreview(file) {
+            const preview = document.getElementById('file-preview');
+            const nameEl = preview.querySelector('.file-name');
+            const metaEl = preview.querySelector('.file-meta');
+            
+            nameEl.textContent = file.filename;
+            metaEl.textContent = `${file.page_count} halaman · ${file.script}`;
+            
+            preview.classList.remove('hidden');
+        }
+
+        function hideFilePreview() {
+            const preview = document.getElementById('file-preview');
+            preview.classList.add('hidden');
+        }
+
+        function showLargeFileWarning(data) {
+            const modal = document.getElementById('large-file-modal');
+            const nameEl = modal.querySelector('.large-file-name');
+            const pagesEl = document.getElementById('large-file-pages');
+            const wordsEl = document.getElementById('large-file-words');
+            const tokensEl = document.getElementById('large-file-tokens');
+            
+            nameEl.textContent = data.filename;
+            pagesEl.textContent = `${data.page_count} halaman`;
+            wordsEl.textContent = `${data.word_count.toLocaleString()} kata`;
+            tokensEl.textContent = `~${data.estimated_tokens.toLocaleString()} tokens`;
+            
+            modal.classList.remove('hidden');
+        }
+
+        function hideLargeFileWarning() {
+            const modal = document.getElementById('large-file-modal');
+            modal.classList.add('hidden');
+        }
+
+        // File input handler
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+        const removeFileBtn = document.getElementById('remove-file-btn');
+        const lfSendAll = document.getElementById('lf-send-all');
+        const lfSendPartial = document.getElementById('lf-send-partial');
+        const lfCancel = document.getElementById('lf-cancel');
+
+        if (fileInput) {
+            fileInput.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                if (!file.name.toLowerCase().endsWith('.pdf')) {
+                    showToast('Hanya file PDF yang diizinkan', 'error');
+                    e.target.value = '';
+                    return;
+                }
+                
+                const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+                if (file.size > MAX_SIZE) {
+                    showToast('File terlalu besar (max 5MB)', 'error');
+                    e.target.value = '';
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const res = await fetch('/upload', {
+                        method: 'POST',
+                        headers: { 'X-API-Key': gatewayToken },
+                        body: formData
+                    });
+                    
+                    if (!res.ok) {
+                        const err = await res.json();
+                        showToast(err.detail || 'Upload gagal', 'error');
+                        return;
+                    }
+                    
+                    const data = await res.json();
+                    
+                    pendingFile = {
+                        file_id: data.file_id,
+                        filename: data.filename,
+                        text: data.text,
+                        script: data.script,
+                        page_count: data.page_count,
+                        word_count: data.word_count,
+                        estimated_tokens: data.estimated_tokens
+                    };
+                    
+                    if (data.exceeds_limit) {
+                        showLargeFileWarning(data);
+                    } else {
+                        showFilePreview(pendingFile);
+                        if (!data.text || data.text.trim().length === 0) {
+                            showToast(`File "${data.filename}" berupa gambar/scan, teks tidak terbaca`, 'warn', 5000);
+                        } else {
+                            showToast(`PDF "${data.filename}" siap dikirim`, 'success');
+                        }
+                    }
+                    
+                } catch (e) {
+                    showToast('Gagal upload file', 'error');
+                }
+                
+                e.target.value = '';
+            };
+        }
+
+        // Upload button handler
+        if (uploadBtn) {
+            uploadBtn.onclick = () => {
+                fileInput.click();
+            };
+        }
+
+        // Remove file button handler
+        if (removeFileBtn) {
+            removeFileBtn.onclick = () => {
+                pendingFile = null;
+                hideFilePreview();
+            };
+        }
+
+        // Large file modal handlers
+        if (lfSendAll) {
+            lfSendAll.onclick = () => {
+                hideLargeFileWarning();
+                showFilePreview(pendingFile);
+                showToast(`PDF "${pendingFile.filename}" siap dikirim`, 'success');
+            };
+        }
+
+        if (lfSendPartial) {
+            lfSendPartial.onclick = async () => {
+                hideLargeFileWarning();
+                showToast('Memuat halaman pertama...', 'info');
+                
+                try {
+                    const res = await fetch('/upload/partial', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-API-Key': gatewayToken
+                        },
+                        body: JSON.stringify({
+                            file_id: pendingFile.file_id,
+                            page_start: 1,
+                            page_end: 10
+                        })
+                    });
+                    
+                    if (!res.ok) {
+                        const err = await res.json();
+                        showToast(err.detail || 'Gagal mengambil halaman', 'error');
+                        return;
+                    }
+                    
+                    const data = await res.json();
+                    
+                    pendingFile.text = data.text;
+                    pendingFile.page_count = data.page_count;
+                    pendingFile.word_count = data.word_count;
+                    pendingFile.estimated_tokens = data.estimated_tokens;
+                    
+                    showFilePreview(pendingFile);
+                    showToast(`Halaman 1-10 dimuat (~${data.estimated_tokens} tokens)`, 'success');
+                    
+                } catch (e) {
+                    showToast('Gagal mengambil halaman', 'error');
+                }
+            };
+        }
+
+        if (lfCancel) {
+            lfCancel.onclick = () => {
+                hideLargeFileWarning();
+                pendingFile = null;
+                hideFilePreview();
+                showToast('Upload dibatalkan', 'info');
+            };
         }
 
         // Add event listener cleared (moved to settings UI only)
@@ -598,7 +803,7 @@
             
             messages.forEach(msg => {
                 if (msg.role === 'user') {
-                    appendUserMessage(msg.content);
+                    appendUserMessage(msg.content, msg.metadata);
                 } else if (msg.role === 'assistant') {
                     appendAgentMessage(msg.content);
                 }
@@ -607,24 +812,28 @@
             scrollToBottom();
         }
 
-        function appendUserMessage(text) {
+        function appendUserMessage(text, metadata = null) {
             const div = document.createElement('div');
             div.className = 'message-user';
             const time = getFormattedTime();
+            
+            const fileHtml = metadata ? renderFileCard(metadata) : '';
+            const isJustFile = text === '(PDF attached)' || !text;
+            const textHtml = isJustFile ? '' : `<div class="bubble-text">${renderContent(text)}</div>`;
+
             div.innerHTML = `
-                <div class="bubble">
+                <div class="bubble ${isJustFile ? 'file-only' : ''}">
                     <button class="bubble-copy-btn" title="Salin pesan">${ICON_COPY}</button>
-                    <div class="bubble-text">${renderContent(text)}</div>
+                    ${fileHtml}
+                    ${textHtml}
                     <div class="bubble-footer">
                         <span class="bubble-time">${time}</span>
                     </div>
                 </div>
-
-
             `;
-            // Fix XSS: gunakan addEventListener bukan onclick attribute
+            // Fix XSS
             const copyBtn = div.querySelector('.bubble-copy-btn');
-            copyBtn.addEventListener('click', () => copyToClipboard(text, copyBtn));
+            copyBtn.addEventListener('click', () => copyToClipboard(text || '', copyBtn));
             messagesContainer.appendChild(div);
             scrollToBottom();
         }
@@ -914,7 +1123,7 @@
 
         async function sendMessage() {
             const text = messageInput.value.trim();
-            if (!text) return;
+            if (!text && !pendingFile) return;
 
             if (!currentSessionId) {
                 currentSessionId = generateId();
@@ -956,22 +1165,41 @@
             }
 
             // Store user message for auto-naming
-            lastUserMessage = text;
+            lastUserMessage = text || '(PDF attached)';
+
+            // Build file context if present
+            let fileContext = null;
+            if (pendingFile) {
+                fileContext = {
+                    file_id: pendingFile.file_id,
+                    filename: pendingFile.filename,
+                    text: pendingFile.text,
+                    script: pendingFile.script,
+                    page_count: pendingFile.page_count,
+                    word_count: pendingFile.word_count
+                };
+            }
 
             // Add user message bubble immediately
-            appendUserMessage(text);
+            appendUserMessage(text, fileContext);
 
             // Show typing indicator immediately — before server responds
             currentAgentContent = '';
             startAgentMessage();
             typingStartTime = Date.now();
 
-            // Send via WebSocket
-            ws.send(JSON.stringify({ type: 'message', content: text }));
+            // Send via WebSocket with file context
+            ws.send(JSON.stringify({ 
+                type: 'message', 
+                content: text || '(PDF attached)',
+                file_context: fileContext
+            }));
 
-            // Clear input
+            // Clear input and file
             messageInput.value = '';
             messageInput.style.height = 'auto';
+            pendingFile = null;
+            hideFilePreview();
 
             // Disable send button while waiting
             isGenerating = true;
