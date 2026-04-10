@@ -1169,7 +1169,11 @@
             z-index: 200;
             animation: fadeIn 0.3s ease-out;
         }
-        .toast-info { background: #6B6560; color: white; }
+        .toast-info { 
+            background: #6B6560; 
+            color: white; 
+            bottom: 80px; /* Shift up to prevent overlap with success alerts */
+        }
         .toast-success { background: #27ae60; color: white; }
         .toast-error { background: #e74c3c; color: white; }
 
@@ -1703,8 +1707,6 @@
 .bubble-file-meta {
     font-size: 11px;
     opacity: 0.7;
-}
-    overflow: hidden;
 }
 
 /* ============================================
