@@ -224,3 +224,30 @@ class SessionStore:
             self.update_session_name(session_id, name)
             return name
         return None
+
+    def remove_file_metadata(self, file_id: str) -> bool:
+        """Menandai metadata file sebagai 'deleted' di database."""
+        with self._get_conn() as conn:
+            # Ambil semua pesan yang merujuk file_id ini
+            pattern = f'%"{file_id}"%'
+            rows = conn.execute(
+                "SELECT id, metadata FROM messages WHERE metadata LIKE ?",
+                (pattern,)
+            ).fetchall()
+            
+            for row in rows:
+                try:
+                    meta = json.loads(row["metadata"])
+                    if meta.get("file_id") == file_id:
+                        meta["deleted"] = True
+                        # Jangan hapus filename agar UI bisa menampilkan nama file yang pernah ada
+                        conn.execute(
+                            "UPDATE messages SET metadata = ? WHERE id = ?",
+                            (json.dumps(meta), row["id"])
+                        )
+                except Exception as e:
+                    log("error", f"Failed to update metadata during deletion: {e}")
+            
+            conn.commit()
+        log("memory", f"Marked metadata as deleted for file: {file_id}")
+        return True

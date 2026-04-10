@@ -16,7 +16,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <!-- HEADER -->
@@ -40,6 +40,7 @@
                 <span class='status-text'>Offline</span>
             </div>
             <div id='user-avatar'>K</div>
+            <button id='sidebar-right-toggle' title='Daftar Berkas Sesi'>📁</button>
         </div>
     </header>
 
@@ -99,8 +100,20 @@
                 </div>
             </div>
         </main>
-    </div>
 
+        <!-- SIDEBAR KANAN (DAFTAR BERKAS) -->
+        <aside id='sidebar-right' class='collapsed'>
+            <div class='sidebar-right-header'>
+                <h3>Berkas Sesi</h3>
+                <button id='sidebar-right-close' title='Tutup Sidebar'>&times;</button>
+            </div>
+            <div id='session-files-list'>
+                <!-- Diisi JavaScript -->
+                <div class='empty-sidebar-state'>
+                    <p>Belum ada berkas terunggah di sesi ini.</p>
+                </div>
+            </div>
+        </aside>
     </div>
 
     <!-- Confirm Modal -->
@@ -200,6 +213,6 @@
         </div>
     </div>
 
-    <script src="/static/script.js" defer></script>
+    <script src="/static/script.js" defer></script>
 </body>
 </html>

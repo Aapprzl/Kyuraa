@@ -360,7 +360,15 @@ class GatewayServer:
             file_path = self._upload_dir / file_id
             if not file_path.exists():
                 raise HTTPException(404, "File tidak ditemukan")
+            
+            # Hapus file dari disk
             file_path.unlink()
+            
+            # Hapus metadata dari database pesan
+            from src.memory.session_store import SessionStore
+            store = SessionStore()
+            store.remove_file_metadata(file_id)
+            
             return {"success": True, "deleted": file_id}
 
         @self._app.get("/settings")
@@ -634,6 +642,38 @@ class GatewayServer:
             sessions = store.list_sessions()
             log("gateway", f"Listed sessions: {len(sessions)}")
             return {"sessions": sessions}
+
+        @self._app.post("/sessions/{session_id}/connected")
+        async def create_connected_session(session_id: str, request: Request):
+            self._verify_token(request)
+            from src.memory.session_store import SessionStore
+            store = SessionStore()
+            
+            # 1. Ambil riwayat sesi lama
+            messages = store.get_session_messages(session_id)
+            if not messages:
+                raise HTTPException(status_code=404, detail="Sesi lama tidak ditemukan atau kosong")
+            
+            # 2. Buat ringkasan menggunakan LLM
+            agent = self._get_system_agent()
+            llm_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
+            summary = agent.llm.summarize(llm_messages)
+            
+            # 3. Buat sesi baru
+            from uuid import uuid4
+            new_session_id = f"s-{int(time.time()*1000)}-{uuid4().hex[:7]}"
+            store.create_session(new_session_id, name=f"Lanjutan: {session_id[:8]}")
+            
+            # 4. Masukkan pesan introduksi yang berisi ringkasan
+            intro_content = f"Sesi ini dilanjutkan dari sesi sebelumnya.\n\n**Ringkasan Konteks Sebelumnya:**\n{summary}\n\nApa yang ingin Anda bahas selanjutnya?"
+            store.add_message(new_session_id, "assistant", intro_content)
+            
+            log("gateway", f"Connected session created: {new_session_id} from {session_id}")
+            return {
+                "session_id": new_session_id,
+                "summary": summary,
+                "intro": intro_content
+            }
 
         @self._app.delete("/sessions/cleanup")
         async def cleanup_empty_sessions():

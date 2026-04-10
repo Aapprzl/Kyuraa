@@ -192,3 +192,21 @@ class LLMClient:
             # More conservative estimation for Indonesian/Arabic (divide by 3 instead of 4)
             total += len(content) // 3
         return total
+
+    def summarize(self, messages: Sequence[dict[str, str]]) -> str:
+        """Merangkum percakapan dalam bahasa Indonesia."""
+        if not messages:
+            return "Tidak ada percakapan untuk dirangkum."
+            
+        summary_prompt = "Tolong buat ringkasan eksekutif yang sangat singkat dan padat (maksimal 2 paragraf) dari percakapan di atas dalam Bahasa Indonesia. Fokus pada poin-poin utama yang sudah dibahas dan riwayat dokumen yang dilampirkan agar sesi berikutnya bisa langsung nyambung."
+        
+        # Buat request khusus untuk merangkum
+        temp_messages = list(messages)
+        temp_messages.append({"role": "user", "content": summary_prompt})
+        
+        try:
+            res = self.chat("Anda adalah asisten perangkum yang handal.", temp_messages, truncate_history=True)
+            return res.get("content", "Gagal menghasilkan ringkasan.")
+        except Exception as e:
+            log("error", f"Summarization failed: {e}")
+            return "Terjadi kesalahan saat merangkum percakapan."

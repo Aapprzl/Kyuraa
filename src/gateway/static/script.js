@@ -24,6 +24,8 @@
         
         // File upload state
         let pendingFile = null;  // {file_id, filename, text, script, page_count, word_count}
+        let sessionFiles = []; // Array berkas untuk sidebar kanan
+        let totalInputTokensThisSession = 0; // Tracking untuk suggestion sesi baru
 
         // Security Token — support ?token=xxx URL param for easy injection
         (function() {
@@ -50,6 +52,10 @@
         const modelBadge = document.getElementById('model-badge');
         const toastContainer = document.getElementById('toast-container');
         const confirmModal = document.getElementById('confirm-modal');
+        const sidebarRight = document.getElementById('sidebar-right');
+        const sidebarRightToggle = document.getElementById('sidebar-right-toggle');
+        const sidebarRightClose = document.getElementById('sidebar-right-close');
+        const sessionFilesList = document.getElementById('session-files-list');
 
         // ============================================
         // UTILITIES
@@ -667,6 +673,12 @@
                 appendToken(data.content);
             } else if (data.type === 'done') {
                 finishAgentMessage(data);
+                
+                // Track input tokens to check context window fullness
+                if (data.usage && data.usage.input_tokens) {
+                    totalInputTokensThisSession += data.usage.input_tokens;
+                    checkContextFullness();
+                }
             } else if (data.type === 'error') {
                 showToast(data.message, 'error');
                 finishAgentMessage(data);
@@ -674,6 +686,54 @@
                 showToast(data.message, 'info');
             } else if (data.type === 'file_saved') {
                 showToast('File disimpan', 'success');
+            }
+        }
+
+        function checkContextFullness() {
+            // Threshold: 25.000 tokens (limit is ~30k)
+            const THRESHOLD = 25000;
+            if (totalInputTokensThisSession > THRESHOLD) {
+                showFullContextSuggestion();
+            }
+        }
+
+        function showFullContextSuggestion() {
+            // Hanya tampilkan jika belum ada suggestion di layar
+            if (document.querySelector('.session-suggestion')) return;
+
+            const div = document.createElement('div');
+            div.className = 'session-suggestion';
+            div.innerHTML = `
+                <div class="suggestion-title">⚠️ Memori Hampir Penuh</div>
+                <div class="suggestion-text">Percakapan ini sudah cukup panjang. Untuk menjaga ketajaman ingatan Agen, sebaiknya lanjutkan di sesi baru. Agen akan tetap membawa ringkasan diskusi ini ke sana.</div>
+                <button class="btn-connect-session" onclick="createConnectedSession()">Lanjutkan di Sesi Baru</button>
+            `;
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        async function createConnectedSession() {
+            if (!currentSessionId) return;
+            
+            showToast('Menyiapkan estafet sesi (Merangkum diskusi)...', 'info', 0);
+            
+            try {
+                const res = await fetch(`/sessions/${currentSessionId}/connected`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': gatewayToken }
+                });
+                
+                if (!res.ok) throw new Error('Gagal membuat sesi terhubung');
+                
+                const data = await res.json();
+                
+                // Berhasil! Pindah ke sesi baru
+                loadSessions(); // Refresh list sidebar kiri
+                selectSession(data.session_id);
+                showToast('Berhasil pindah ke sesi baru dengan rangkuman!', 'success');
+                
+            } catch (e) {
+                showToast('Gagal memproses estafet sesi', 'error');
             }
         }
 
@@ -760,6 +820,7 @@
 
         async function selectSession(sessionId) {
             currentSessionId = sessionId;
+            totalInputTokensThisSession = 0; // Reset tracking
             
             // Mark active in sidebar
             document.querySelectorAll('.session-item').forEach(item => {
@@ -774,6 +835,9 @@
                 
                 welcomeScreen.classList.add('hidden');
                 messagesContainer.classList.remove('hidden');
+                
+                // Track total tokens from previous messages
+                totalInputTokensThisSession = data.messages.reduce((sum, m) => sum + (m.token_count || 0), 0);
                 
                 renderMessages(data.messages);
                 scrollToBottom();
@@ -837,32 +901,62 @@
         // ============================================
         function renderMessages(messages) {
             messagesContainer.innerHTML = '';
+            sessionFiles = []; // Reset file list
             
-            messages.forEach(msg => {
+            messages.forEach((msg, index) => {
                 if (msg.role === 'user') {
-                    appendUserMessage(msg.content, msg.metadata);
+                    // Assign temporary ID for scrolling if it doesn't have one
+                    const msgId = `msg-${index}`;
+                    appendUserMessage(msg.content, msg.metadata, msgId);
+                    
+                    if (msg.metadata && msg.metadata.file_id && !msg.metadata.deleted) {
+                        sessionFiles.push({
+                            ...msg.metadata,
+                            msgId: msgId
+                        });
+                    }
                 } else if (msg.role === 'assistant') {
                     appendAgentMessage(msg.content);
                 }
             });
             
+            updateFileSidebar();
             scrollToBottom();
         }
 
-        function appendUserMessage(text, metadata = null) {
+        function appendUserMessage(text, metadata = null, id = null) {
             const div = document.createElement('div');
             div.className = 'message-user';
+            if (id) div.id = id;
             const time = getFormattedTime();
             
-            const fileHtml = metadata ? renderFileCard(metadata) : '';
+            // Cek apakah ini pesan file (baik aktif maupun sudah dihapus)
+            const isFileEntry = metadata && metadata.file_id;
             const isJustFile = text === '(PDF attached)' || !text;
-            const textHtml = isJustFile ? '' : `<div class="bubble-text">${renderContent(text)}</div>`;
+            const cleanText = text ? text.replace('(PDF attached)', '').trim() : '';
+            
+            let displayHtml = '';
+            
+            if (metadata && !metadata.deleted) {
+                // Berkas aktif
+                const fileHtml = renderFileCard(metadata);
+                const textHtml = cleanText ? `<div class="bubble-text">${renderContent(cleanText)}</div>` : '';
+                displayHtml = fileHtml + textHtml;
+            } else if (metadata && metadata.deleted) {
+                // Berkas sudah dihapus (info tetap ada di metadata)
+                const fileName = metadata.filename || 'Berkas';
+                const deletedNotice = `<div class="file-deleted-notice">📂 Berkas <strong>${escapeHtml(fileName)}</strong> telah dihapus</div>`;
+                const textHtml = cleanText ? `<div class="bubble-text">${renderContent(cleanText)}</div>` : '';
+                displayHtml = deletedNotice + textHtml;
+            } else {
+                // Pesan teks biasa
+                displayHtml = `<div class="bubble-text">${renderContent(text)}</div>`;
+            }
 
             div.innerHTML = `
-                <div class="bubble ${isJustFile ? 'file-only' : ''}">
+                <div class="bubble ${isJustFile && metadata && !metadata.deleted ? 'file-only' : ''}">
                     <button class="bubble-copy-btn" title="Salin pesan">${ICON_COPY}</button>
-                    ${fileHtml}
-                    ${textHtml}
+                    ${displayHtml}
                     <div class="bubble-footer">
                         <span class="bubble-time">${time}</span>
                     </div>
@@ -878,6 +972,15 @@
             }
 
             messagesContainer.appendChild(div);
+
+            // Jika ini pesan baru (bukan dari render history), tambahkan ke sidebar
+            if (!id && metadata && metadata.file_id) {
+                const newId = `msg-${Date.now()}`;
+                div.id = newId;
+                sessionFiles.push({ ...metadata, msgId: newId });
+                updateFileSidebar();
+            }
+
             scrollToBottom();
         }
 
@@ -1452,3 +1555,77 @@
         window.setAppTheme = setAppTheme;
         window.openSettings = openSettings;
         window.showOCRModal = showOCRModal;
+        window.createConnectedSession = createConnectedSession;
+        window.deleteFilePermanently = deleteFilePermanently;
+        window.jumpToMessage = jumpToMessage;
+
+        // ============================================
+        // SIDEBAR RIGHT (FILE LIST)
+        // ============================================
+        function updateFileSidebar() {
+            if (sessionFiles.length === 0) {
+                sessionFilesList.innerHTML = `
+                    <div class="empty-sidebar-state">
+                        <p>Belum ada berkas terunggah di sesi ini.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            sessionFilesList.innerHTML = sessionFiles.map(file => `
+                <div class="sidebar-file-item" id="sidebar-file-${file.file_id}">
+                    <div class="sidebar-file-main">
+                        <div class="sidebar-file-icon">PDF</div>
+                        <div class="sidebar-file-info">
+                            <div class="sidebar-file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</div>
+                            <div class="sidebar-file-meta">${file.page_count || '?'} hlm · ${file.script || 'text'}</div>
+                        </div>
+                    </div>
+                    <div class="sidebar-file-actions">
+                        <button class="btn-sidebar-jump" onclick="jumpToMessage('${file.msgId}')">Lihat</button>
+                        <button class="btn-sidebar-delete" onclick="deleteFilePermanently('${file.file_id}')">Hapus</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleSidebarRight() {
+            sidebarRight.classList.toggle('collapsed');
+        }
+
+        function jumpToMessage(msgId) {
+            const el = document.getElementById(msgId);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const bubble = el.querySelector('.bubble');
+                if (bubble) {
+                    bubble.classList.add('highlight-pulse');
+                    setTimeout(() => bubble.classList.remove('highlight-pulse'), 2000);
+                }
+            }
+        }
+
+        async function deleteFilePermanently(fileId) {
+            showConfirm('Hapus berkas ini secara permanen dari server dan riwayat?', async () => {
+                try {
+                    const res = await fetch(`/upload/${fileId}`, { 
+                        method: 'DELETE',
+                        headers: { 'X-API-Key': gatewayToken }
+                    });
+                    
+                    if (res.ok) {
+                        showToast('Berkas dihapus permanen', 'success');
+                        // Update UI
+                        sessionFiles = sessionFiles.filter(f => f.file_id !== fileId);
+                        updateFileSidebar();
+                        // Optional: reload current session messages to hide the file cards in chat
+                        selectSession(currentSessionId);
+                    }
+                } catch (e) {
+                    showToast('Gagal menghapus berkas', 'error');
+                }
+            });
+        }
+
+        sidebarRightToggle.addEventListener('click', toggleSidebarRight);
+        sidebarRightClose.addEventListener('click', () => sidebarRight.classList.add('collapsed'));

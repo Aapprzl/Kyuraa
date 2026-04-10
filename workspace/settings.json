@@ -1,12 +1,12 @@
 {
-    "OPENROUTER_API_KEY": "enc:gAAAAABp183P1fdlVtqM7OCTOCsXxUkYnCVTcSrJb4-4nUkitYaKownils5OnM_j6cfg19CmhQEAlUHbOHyH2Tg0DUOZ9si7m-N6XgB_5Rr5iydLLbHYF5qYGRRa3zOFC2qTI4Spb1lv4qffEUg-wWENSq_W2KQ9J2hq6iuWtFhoJ5XbmyYylZc=",
+    "OPENROUTER_API_KEY": "enc:gAAAAABp2J89l7vZYUmZPAlRNV0mvFn7PMsSHVkGhlFu40MFJls1hHKstNra-CqGmV63PrUC_tCKOkGGt0MTr3MNMhLooJQmId9UAV3sx-nkZoPLqAUKETjJp0j1LLeLulQ9CCsorsBloNUP4Jbiw_cSSaVou2PoDdQeElfCSGNz1fZPSR9Nras=",
     "OPENROUTER_MODEL": "nvidia/nemotron-3-nano-30b-a3b:free",
     "ACTIVE_PROVIDER": "google",
     "AGENT_MODEL": "gemini-3-flash-preview",
-    "GOOGLE_API_KEY": "enc:gAAAAABp2EcgqF529guYmCNHgDNQ58rYY51iBDeywmtVVnqwzXBCyDo0A6Zog8uNFbZulh7VEyfmFsIxuOnObBwX8dOhZPIOLF8EiUjIpKOYbP7X52SJq9mzy5YIQ94xLfkPtaCm_zaP",
+    "GOOGLE_API_KEY": "enc:gAAAAABp2KFfplOdPUz0kFlKSNCxGOJczjcDinPSHyOtuHn-2C1ZX7BSf7ayt--BrLnGNUWyBZzm-MYu4psq6F7dipD6v-c2CwLsGp5yqUQSoIp9kE2NYpF_AOqBnzE5djY6EQ5Xsl2M",
     "GOOGLE_MODEL": "gemini-3-flash-preview",
     "TOOLS_STATE": {
-        "detect_language": true,
+        "detect_language": false,
         "read_file": true,
         "write_file": true,
         "save_translation": true,
@@ -15,7 +15,7 @@
         "scan_file": true,
         "read_chunk": true,
         "open_output_folder": true,
-        "word-counter": true
+        "word-counter": false
     },
     "active_skill": "karya-ilmiah-pembimbing"
 }
