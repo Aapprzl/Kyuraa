@@ -711,12 +711,30 @@ class GatewayServer:
             }
 
         @self._app.delete("/sessions/{session_id}")
-        async def delete_session(session_id: str):
+        async def delete_session(session_id: str, request: Request):
+            self._verify_token(request)
             from src.memory.session_store import SessionStore
             store = SessionStore()
+            
+            # 1. Ambil semua pesan untuk mencari metadata file
+            messages = store.get_session_messages(session_id)
+            for msg in messages:
+                meta = msg.get("metadata")
+                if meta and isinstance(meta, dict):
+                    file_id = meta.get("file_id")
+                    if file_id:
+                        file_path = self._upload_dir / file_id
+                        if file_path.exists():
+                            try:
+                                file_path.unlink()
+                                log("gateway", f"Physical file deleted: {file_id}")
+                            except Exception as e:
+                                log("error", f"Failed to delete physical file {file_id}: {e}")
+            
+            # 2. Hapus data dari database
             store.delete_session(session_id)
             self._cleanup_session(session_id)
-            log("gateway", f"Deleted session: {session_id}")
+            log("gateway", f"Deleted session and its files: {session_id}")
             return {"success": True}
 
         @self._app.delete("/sessions/{session_id}/messages/last")

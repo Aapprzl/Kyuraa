@@ -1,8 +1,8 @@
 {
-    "OPENROUTER_API_KEY": "enc:gAAAAABp2J89l7vZYUmZPAlRNV0mvFn7PMsSHVkGhlFu40MFJls1hHKstNra-CqGmV63PrUC_tCKOkGGt0MTr3MNMhLooJQmId9UAV3sx-nkZoPLqAUKETjJp0j1LLeLulQ9CCsorsBloNUP4Jbiw_cSSaVou2PoDdQeElfCSGNz1fZPSR9Nras=",
-    "OPENROUTER_MODEL": "nvidia/nemotron-3-nano-30b-a3b:free",
-    "ACTIVE_PROVIDER": "google",
-    "AGENT_MODEL": "gemini-3-flash-preview",
+    "OPENROUTER_API_KEY": "enc:gAAAAABp2OmZUbytBgj-sUM4sWhbMp9yBtWPNOE7OSApbUWN4Wk4fd8_PLNtEppwKh6hTrrxp_XhmUpOR7f6pmRnqhUkJopJhXhl7XFLtRta29iU17bn7YZ64_nigsRz4EvPrsOkKmi8CX8AlX3DRr_liuYl9e9UQ75eyVa1fTRi6x06M9vGk48=",
+    "OPENROUTER_MODEL": "z-ai/glm-4.5-air:free",
+    "ACTIVE_PROVIDER": "openrouter",
+    "AGENT_MODEL": "z-ai/glm-4.5-air:free",
     "GOOGLE_API_KEY": "enc:gAAAAABp2KFfplOdPUz0kFlKSNCxGOJczjcDinPSHyOtuHn-2C1ZX7BSf7ayt--BrLnGNUWyBZzm-MYu4psq6F7dipD6v-c2CwLsGp5yqUQSoIp9kE2NYpF_AOqBnzE5djY6EQ5Xsl2M",
     "GOOGLE_MODEL": "gemini-3-flash-preview",
     "TOOLS_STATE": {

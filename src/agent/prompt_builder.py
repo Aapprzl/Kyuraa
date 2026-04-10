@@ -80,8 +80,14 @@ Sistem akan otomatis mengeksekusi tool tersebut dan memberikan hasilnya kepadamu
                 filename = metadata.get("filename", "file-unknown")
                 script = metadata.get("script", "unknown")
                 file_text = metadata.get("text", "")
+                is_deleted = metadata.get("deleted", False)
                 
-                if file_text.strip():
+                if is_deleted:
+                    content = f"""[CONTEXT - File: {filename}]
+[SISTEM INFO: Berkas '{filename}' telah DIHAPUS PERMANEN oleh pengguna dari server dan riwayat. Anda TIDAK LAGI memiliki akses ke isi berkas ini. Jika ditanya, informasikan bahwa berkas sudah dihapus.]
+
+[USER MESSAGE]: {content}"""
+                elif file_text.strip():
                     content = f"""[CONTEXT - File: {filename}]
 Script: {script}
 --- FILE CONTENT START ---
@@ -91,7 +97,7 @@ Script: {script}
 [USER MESSAGE]: {content}"""
                 else:
                     content = f"""[CONTEXT - File: {filename}]
-[SISTEM INFO: File PDF ini adalah hasil scan/gambar gambar biner. Teks tidak bisa diekstrak. 
+[SISTEM INFO: File PDF ini adalah hasil scan/gambar biner. Teks tidak bisa diekstrak. 
 INSTRUKSI WAJIB: Beritahu user secara langsung bahwa Anda tidak dapat membaca PDF hasil scan/gambar. Dilarang menggunakan tool apapun untuk mencoba mencari atau membaca file ini.]
 
 [USER MESSAGE]: {content}"""
@@ -104,8 +110,14 @@ INSTRUKSI WAJIB: Beritahu user secara langsung bahwa Anda tidak dapat membaca PD
             filename = current_metadata.get("filename", "file-unknown")
             script = current_metadata.get("script", "unknown")
             file_text = current_metadata.get("text", "")
+            is_deleted = current_metadata.get("deleted", False)
             
-            if file_text.strip():
+            if is_deleted:
+                final_input = f"""[CONTEXT - File: {filename}]
+[SISTEM INFO: Berkas '{filename}' telah DIHAPUS PERMANEN oleh pengguna dari server dan riwayat. Anda TIDAK LAGI memiliki akses ke isi berkas ini. Jika ditanya, informasikan bahwa berkas sudah dihapus.]
+
+[USER MESSAGE]: {user_input}"""
+            elif file_text.strip():
                 final_input = f"""[CONTEXT - File: {filename}]
 Script: {script}
 --- FILE CONTENT START ---

@@ -503,19 +503,7 @@
         // ============================================
         function updateStatsBar() {
             const footer = document.getElementById('input-footer');
-            const totalTokens = sessionStats.inputTokens + sessionStats.outputTokens;
-            footer.innerHTML = `
-                <span class="stats-bar">
-                    <span>Req: ${sessionStats.requests}</span>
-                    <span class="stat-divider">·</span>
-                    <span>In: ${sessionStats.inputTokens}</span>
-                    <span class="stat-divider">·</span>
-                    <span>Out: ${sessionStats.outputTokens}</span>
-                    <span class="stat-divider">·</span>
-                    <span class="stat-total">∑ ${totalTokens}</span>
-                    ${sessionStartTime ? `<span class="stat-divider">·</span><span>⏱ ${getElapsedTime()}</span>` : ''}
-                </span>
-            `;
+            footer.innerHTML = `Enter untuk kirim · Shift+Enter baris baru`;
         }
 
         function getElapsedTime() {
