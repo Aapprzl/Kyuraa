@@ -14,6 +14,9 @@ ALLOWED_PATHS = [
     str(_BASE / "workspace"),
 ]
 
+# Daftar tool yang memerlukan persetujuan user sebelum eksekusi (HITL)
+SENSITIVE_TOOLS = {"write_file", "save_translation", "delete_session"}
+
 _CUSTOM_TOOLS_DIR = Path("workspace/tools")
 _SETTINGS_PATH = Path("workspace/settings.json")
 

@@ -8,20 +8,17 @@ class PromptBuilder:
         pass
 
     def build_system_prompt(self, skill_manager, tool_registry=None) -> str:
-        BASE_PROMPT = """Kamu adalah asisten AI pribadi yang
-cerdas dan bisa diajak ngobrol. Kamu memiliki beberapa
-skill khusus dan tools yang bisa digunakan sesuai kebutuhan.
+        BASE_PROMPT = """Kamu adalah asisten AI pribadi cerdas. Gunakan skill/tool sesuai instruksi.
 
-ATURAN DASAR:
-- Jika user menyapa atau mengobrol biasa -> jawab natural
-- Skill hanya bisa diaktifkan/dinonaktifkan oleh user secara manual via UI Settings, jangan mencoba mengaktifkannya via chat.
-- Jika ada skill aktif, patuhi instruksi skill tersebut secara ketat.
+ATURAN:
+- Jika obrolan biasa -> jawab natural.
+- Skill diaktifkan via Settings UI, jangan coba aktifkan via chat.
+- Jika ada skill aktif, patuhi instruksinya secara ketat.
+- AKSES FILE: Seluruh aksi file (read_file, write_file, dll) WAJIB menggunakan path yang berawalan dengan 'workspace/'. Anda tidak memiliki izin akses ke folder di luar workspace.
 
-## CARA MENGGUNAKAN TOOL:
-Jika kamu butuh data tambahan atau ingin melakukan aksi teknis, sisipkan tag berikut di dalam jawabanmu:
-[TOOL: nama_tool] param1="nilai" param2="nilai"
-
-Sistem akan otomatis mengeksekusi tool tersebut dan memberikan hasilnya kepadamu di giliran berikutnya.
+## TOOLS:
+Gunakan tag: [TOOL: nama_tool] param="nilai"
+Sistem akan memberikan hasil di giliran berikutnya.
 """
         
         tools_section = self._build_tools_section(tool_registry)

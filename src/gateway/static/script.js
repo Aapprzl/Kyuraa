@@ -674,7 +674,51 @@
                 showToast(data.message, 'info');
             } else if (data.type === 'file_saved') {
                 showToast('File disimpan', 'success');
+            } else if (data.type === 'approval_request') {
+                handleApprovalRequest(data);
             }
+        }
+
+        function handleApprovalRequest(data) {
+            const tool = data.tool;
+            const params = data.params;
+            
+            const div = document.createElement('div');
+            div.className = 'approval-card';
+            div.innerHTML = `
+                <div class="approval-header">
+                    <span>🛡️ Izin Diperlukan</span>
+                </div>
+                <div class="approval-body">
+                    <p style="font-size: 13px; margin-bottom: 8px;">Kyuraa ingin menjalankan aksi sensitif:</p>
+                    <div class="approval-tool-info">
+                        <strong>Tool:</strong> ${tool}<br>
+                        <strong>Params:</strong> ${JSON.stringify(params)}
+                    </div>
+                </div>
+                <div class="approval-actions">
+                    <button class="btn-deny">Tolak</button>
+                    <button class="btn-approve">Izinkan</button>
+                </div>
+            `;
+
+            const approveBtn = div.querySelector('.btn-approve');
+            const denyBtn = div.querySelector('.btn-deny');
+
+            approveBtn.addEventListener('click', () => {
+                ws.send(JSON.stringify({ type: 'approval_response', approved: true }));
+                div.innerHTML = '<div style="color: #27ae60; font-size: 12px; font-weight: 600;">✅ Aksi Diizinkan</div>';
+                setTimeout(() => div.remove(), 2000);
+            });
+
+            denyBtn.addEventListener('click', () => {
+                ws.send(JSON.stringify({ type: 'approval_response', approved: false }));
+                div.innerHTML = '<div style="color: #e74c3c; font-size: 12px; font-weight: 600;">❌ Aksi Ditolak</div>';
+                setTimeout(() => div.remove(), 2000);
+            });
+
+            messagesContainer.appendChild(div);
+            scrollToBottom();
         }
 
         function checkContextFullness() {

@@ -5,10 +5,17 @@ import os
 import signal
 import socket
 import sys
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
 import psutil
+import uvicorn
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 # Ensure project root is in sys.path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -17,33 +24,38 @@ from src.utils.logger import log
 from src.utils.security import SecurityManager
 from src.memory.usage_store import UsageStore
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-import uvicorn
+# ============================================
+# INITIALIZATION (Load Env & Settings)
+# ============================================
 
-# Suppress uvicorn access logs
+def load_system_env():
+    SecurityManager.initialize()
+    settings_path = Path("workspace/settings.json")
+    if settings_path.exists():
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                data = SecurityManager.decrypt_dict(json.load(f))
+                for k, v in data.items(): os.environ[k] = str(v)
+        except: pass
+    
+    env_p = Path(".env")
+    if env_p.exists():
+        for line in env_p.read_text().splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip())
+
+load_system_env()
+
+# Suppress uvicorn logs
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
-
-
-class SettingsSchema(BaseModel):
-    provider: str  # 'openrouter' or 'google'
-    model: str
-    api_key: str
-
-
-class SkillActivateSchema(BaseModel):
-    skill_name: str
-
 
 # ============================================
 # SINGLE INSTANCE ENFORCEMENT
 # ============================================
 
 def check_port_available(host: str, port: int) -> bool:
-    """Try to bind a port; return True if available."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -52,440 +64,67 @@ def check_port_available(host: str, port: int) -> bool:
         except OSError:
             return False
 
-
 def write_pid_lock(port: int) -> Path:
     if os.environ.get("KYURAA_TEST_MODE") == "1":
         return Path(f'.test-lock-{port}')
-
     lock_file = Path(f'.kyuraa-lock-{port}')
     if lock_file.exists():
         try:
             old_pid = int(lock_file.read_text().strip())
             if psutil.pid_exists(old_pid):
-                print(f"\n⚠️  Kyuraa sudah berjalan (PID: {old_pid})")
-                choice = input("   Tutup paksa instance lama dan mulai baru? [Y/n]: ").strip().lower()
-                
-                if choice == 'y' or choice == '':
-                    print(f"   Menutup PID {old_pid}...")
-                    try:
-                        p = psutil.Process(old_pid)
-                        p.terminate()
-                        p.wait(timeout=3)
-                    except (psutil.NoSuchProcess, psutil.TimeoutExpired):
-                        try: p.kill() 
-                        except: pass
-                    lock_file.unlink(missing_ok=True)
-                    log("gateway", f"Forced termination of old instance (PID {old_pid})")
-                else:
-                    print("   Dibatalkan. Silakan gunakan instance yang sudah ada.\n")
-                    sys.exit(0)
-            else:
-                # PID tidak ada lagi — lock file basi, hapus dan lanjutkan
+                log("gateway", f"Closing old instance (PID {old_pid})")
+                try:
+                    p = psutil.Process(old_pid)
+                    p.terminate()
+                    p.wait(timeout=3)
+                except:
+                    try: p.kill() 
+                    except: pass
                 lock_file.unlink(missing_ok=True)
-                log("warn", f"Stale lock file dihapus (PID {old_pid} sudah tidak ada)")
-        except (ValueError, OSError):
-            # File corrupt atau tidak bisa dibaca → hapus saja
+        except:
             lock_file.unlink(missing_ok=True)
-
     lock_file.write_text(str(os.getpid()))
     atexit.register(lambda: lock_file.unlink(missing_ok=True))
     return lock_file
 
-
-# Load env at module level so `app` below respects .env
-def _load_env_early():
-    SecurityManager.initialize()  # Inisialisasi kunci master & gateway token
-    
-    settings_path = Path("workspace/settings.json")
-    if settings_path.exists():
-        try:
-            with open(settings_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # Dekripsi data sensitif (API Keys) sebelum dipasang ke os.environ
-                data = SecurityManager.decrypt_dict(data)
-                for key, value in data.items():
-                    os.environ[key] = str(value)
-        except Exception as e:
-            log("error", f"Gagal memuat settings terenkripsi: {e}")
-            pass
-    env_path = Path(".env")
-    if env_path.exists():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if "=" in line and not line.startswith("#"):
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
-
-
-_load_env_early()
-_DEFAULT_PORT = int(os.environ.get("GATEWAY_PORT", "8766"))
-
-
-def _purge_old_sessions(days: int = 30) -> int:
-    """Hapus session dan message yang lebih tua dari `days` hari. Dipanggil saat startup."""
-    import sqlite3
-    from datetime import datetime, timedelta
-    db_path = Path("workspace/memory/sessions.db")
-    if not db_path.exists():
-        return 0
-    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-    try:
-        with sqlite3.connect(str(db_path)) as conn:
-            conn.execute(
-                "DELETE FROM messages WHERE session_id IN "
-                "(SELECT session_id FROM sessions WHERE updated_at < ?)",
-                (cutoff,)
-            )
-            cursor = conn.execute(
-                "DELETE FROM sessions WHERE updated_at < ?", (cutoff,)
-            )
-            deleted = cursor.rowcount
-            conn.commit()
-            return deleted
-    except Exception as e:
-        log("warn", f"Session purge error: {e}")
-        return 0
-
-
 class GatewayServer:
-    def __init__(self, host: str = "localhost", port: int = _DEFAULT_PORT):
+    def __init__(self, host: str = "localhost", port: int = 8766):
         self._host = host
         self._port = port
-
-        # Enforce single instance — check BEFORE creating app
         if os.environ.get("KYURAA_TEST_MODE") != "1" and not check_port_available(self._host, self._port):
-            print(f"\n❌ ERROR: Port {self._port} sudah digunakan!")
-            print("   Kemungkinan Kyuraa sudah berjalan di instance lain.")
-            print("   Tutup instance yang lama terlebih dahulu.\n")
+            log("error", f"Port {self._port} already in use")
             sys.exit(1)
         write_pid_lock(self._port)
 
         self._app = FastAPI(title="Agent Gateway")
         self._active_sessions: dict[str, dict] = {}
         self._agents: dict[str, Any] = {}
-        self._system_agent: Any = None  # Agent khusus untuk endpoint non-chat (skills, dll)
+        self._system_agent: Any = None
         self._running = False
         self._session_buffers: dict[str, list[str]] = {}
-        self._active_skill: str | None = None
-        
         self._usage_store = UsageStore()
-
-        # Upload directory for PDF files
         self._upload_dir = Path("workspace/tempat_baca/uploaded_pdfs")
         self._upload_dir.mkdir(parents=True, exist_ok=True)
 
-        # Sajikan file statis (style.css, script.js, dll.)
         self._app.mount("/static", StaticFiles(directory="src/gateway/static"), name="static")
-
         self._setup_routes()
 
+        # Show banner even when running via uvicorn
+        from src.agent.agent_loop import AgentLoop
+        sa = AgentLoop(session_id="__system__")
+        print_banner(len(sa._skill_manager.available_skills), self._port)
+
     def _verify_token(self, request):
-        """Validasi token gateway dari header atau query param."""
-        # Jika request adalah query (untuk WS), token ada di url params
-        cli_token = request.headers.get("X-API-Key") or request.query_params.get("token")
-        srv_token = SecurityManager.get_gateway_token()
-        
-        if not cli_token or cli_token != srv_token:
+        token = request.headers.get("X-API-Key") or request.query_params.get("token")
+        if not token or token != SecurityManager.get_gateway_token():
             raise HTTPException(status_code=401, detail="❌ Akses dilarang: Token tidak valid.")
 
     def _setup_routes(self):
-        @self._app.get("/info")
-        async def info():
-            # Try to load from settings.json first to reflect manual edits
-            settings_path = Path("workspace/settings.json")
-            model = ""
-            active = ""
-
-            if settings_path.exists():
-                try:
-                    with open(settings_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        active = data.get("ACTIVE_PROVIDER", "google")
-                        if active == "google":
-                            model = data.get("GOOGLE_MODEL", "")
-                        else:
-                            model = data.get("OPENROUTER_MODEL") or data.get("AGENT_MODEL", "")
-                except Exception:
-                    pass
-
-            # Fallback to environment variables if file read failed or missing values
-            if not active:
-                active = os.environ.get("ACTIVE_PROVIDER", "google")
-            if not model:
-                if active == "google":
-                    model = os.environ.get("GOOGLE_MODEL", "")
-                else:
-                    model = os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "")
-
-            return {
-                "model": model or "Unknown",
-                "provider": active,
-                "version": "1.0.0"
-            }
-
-        @self._app.get("/stats")
-        async def get_stats(request: Request):
-            self._verify_token(request)
-            return self._usage_store.get_totals()
-
-        @self._app.get("/stats/history")
-        async def get_stats_history(request: Request, days: int = 7):
-            self._verify_token(request)
-            return self._usage_store.get_daily_usage(days)
-
-        @self._app.get("/stats/by-model")
-        async def get_stats_by_model(request: Request):
-            self._verify_token(request)
-            return self._usage_store.get_by_model()
-
-        @self._app.post("/stats/clear-models")
-        async def clear_stats_by_models(request: Request):
-            self._verify_token(request)
-            body = await request.json()
-            models = body.get("models", [])
-            if not models:
-                return {"deleted": 0}
-            deleted = self._usage_store.clear_by_models(models)
-            return {"deleted": deleted}
-
-        @self._app.post("/upload")
-        async def upload_pdf(request: Request):
-            self._verify_token(request)
-            try:
-                form = await request.form()
-                file = list(form.values())[0]
-                
-                if not file.filename.lower().endswith('.pdf'):
-                    raise HTTPException(400, "Hanya file PDF yang diizinkan")
-                
-                import uuid
-                safe_name = f"{uuid.uuid4().hex}_{file.filename}"
-                file_path = self._upload_dir / safe_name
-                
-                content = await file.read()
-                
-                MAX_FILE_SIZE = 5 * 1024 * 1024
-                if len(content) > MAX_FILE_SIZE:
-                    raise HTTPException(400, "File terlalu besar (max 5MB)")
-                
-                with open(file_path, "wb") as f:
-                    f.write(content)
-                
-                from src.tools.pdf_processor import extract_text_from_pdf, estimate_tokens
-                import asyncio
-                analysis = await asyncio.to_thread(extract_text_from_pdf, str(file_path))
-                
-                estimated_tokens = estimate_tokens(analysis["text"])
-                MAX_PDF_TOKENS = 25000
-                
-                text_len = len(analysis["text"]) if analysis["text"] else 0
-                log("upload", f"PDF uploaded: {file.filename} | pages: {analysis['page_count']} | words: {analysis['word_count']} | chars: {text_len} | script: {analysis['script']} | tokens: {estimated_tokens}")
-                
-                return {
-                    "success": True,
-                    "file_id": safe_name,
-                    "filename": file.filename,
-                    "page_count": analysis["page_count"],
-                    "word_count": analysis["word_count"],
-                    "script": analysis["script"],
-                    "text": analysis["text"],
-                    "text_preview": analysis["text"][:500] if analysis["text"] else "",
-                    "estimated_tokens": estimated_tokens,
-                    "exceeds_limit": estimated_tokens > MAX_PDF_TOKENS,
-                    "max_tokens": MAX_PDF_TOKENS,
-                    "warnings": analysis["warnings"]
-                }
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                log("error", f"Upload error: {e}")
-                raise HTTPException(500, f"Gagal upload: {str(e)}")
-
-        @self._app.post("/upload/partial")
-        async def upload_pdf_partial(request: Request):
-            self._verify_token(request)
-            try:
-                body = await request.json()
-                file_id = body.get("file_id")
-                page_start = body.get("page_start", 1)
-                page_end = body.get("page_end")
-                
-                if not file_id:
-                    raise HTTPException(400, "file_id diperlukan")
-                
-                file_path = self._upload_dir / file_id
-                if not file_path.exists():
-                    raise HTTPException(404, "File tidak ditemukan")
-                
-                from src.tools.pdf_processor import extract_text_from_pdf, estimate_tokens
-                import asyncio
-                analysis = await asyncio.to_thread(extract_text_from_pdf, str(file_path), page_start, page_end)
-                
-                estimated_tokens = estimate_tokens(analysis["text"])
-                MAX_PDF_TOKENS = 25000
-                
-                return {
-                    "success": True,
-                    "file_id": file_id,
-                    "page_start": page_start,
-                    "page_end": page_end,
-                    "page_count": analysis["page_count"],
-                    "word_count": analysis["word_count"],
-                    "script": analysis["script"],
-                    "text": analysis["text"],
-                    "estimated_tokens": estimated_tokens,
-                    "exceeds_limit": estimated_tokens > MAX_PDF_TOKENS,
-                    "max_tokens": MAX_PDF_TOKENS,
-                    "warnings": analysis["warnings"]
-                }
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                log("error", f"Partial upload error: {e}")
-                raise HTTPException(500, f"Gagal extract halaman: {str(e)}")
-
-        @self._app.get("/upload/{file_id}")
-        async def get_uploaded_file(request: Request, file_id: str):
-            self._verify_token(request)
-            file_path = self._upload_dir / file_id
-            if not file_path.exists():
-                raise HTTPException(404, "File tidak ditemukan")
-            return FileResponse(str(file_path), media_type="application/pdf", filename=file_path.name)
-
-        @self._app.delete("/upload/{file_id}")
-        async def delete_uploaded_file(request: Request, file_id: str):
-            self._verify_token(request)
-            file_path = self._upload_dir / file_id
-            if not file_path.exists():
-                raise HTTPException(404, "File tidak ditemukan")
-            
-            # Hapus file dari disk
-            file_path.unlink()
-            
-            # Hapus metadata dari database pesan
-            from src.memory.session_store import SessionStore
-            store = SessionStore()
-            store.remove_file_metadata(file_id)
-            
-            return {"success": True, "deleted": file_id}
-
-        @self._app.get("/settings")
-        async def get_settings(request: Request):
-            self._verify_token(request)
-            # OpenRouter
-            or_model = os.environ.get("OPENROUTER_MODEL") or os.environ.get("AGENT_MODEL", "")
-            or_key = os.environ.get("OPENROUTER_API_KEY", "")
-
-            # Google
-            google_model = os.environ.get("GOOGLE_MODEL", "")
-            google_key = os.environ.get("GOOGLE_API_KEY", "")
-
-            # Active
-            active = os.environ.get("ACTIVE_PROVIDER", "google")
-
-            def mask(key):
-                return key[:6] + "********" if len(key) > 6 else "********" if key else ""
-
-            return {
-                "openrouter": {
-                    "model": or_model,
-                    "api_key": mask(or_key)
-                },
-                "google": {
-                    "model": google_model,
-                    "api_key": mask(google_key)
-                },
-                "active_provider": active
-            }
-
-        @self._app.post("/settings/validate-and-save")
-        async def save_settings(settings: SettingsSchema, request: Request):
-            self._verify_token(request)
-            # 1. Resolve Masked API Key & Determine Prefix
-            provider = settings.provider.lower()
-            api_key = settings.api_key
-
-            key_env = "OPENROUTER_API_KEY" if provider == "openrouter" else "GOOGLE_API_KEY"
-            model_env = "OPENROUTER_MODEL" if provider == "openrouter" else "GOOGLE_MODEL"
-
-            if "********" in api_key:
-                api_key = os.environ.get(key_env, "")
-
-            # 2. Validate Connection
-            from src.agent.llm_client import LLMClient
-
-            try:
-                # Determine model name and URL for validation
-                is_google = (provider == "google")
-                base_url = "https://generativelanguage.googleapis.com/v1beta/openai/" if is_google else "https://openrouter.ai/api/v1"
-
-                # Correct model name for Google validation (strip google/ and :free etc)
-                valid_model = settings.model
-                if is_google:
-                    valid_model = valid_model.replace("google/", "").split(":")[0]
-
-                test_client = LLMClient(api_key=api_key, model=valid_model)
-                # Overwrite base_url for validation
-                test_client._client.base_url = base_url
-
-                # Simple test call
-                test_client.chat(
-                    system="You are a validator.",
-                    messages=[{"role": "user", "content": "hi"}]
-                )
-            except Exception as e:
-                err_msg = str(e).lower()
-                log("error", f"Validation failed for {provider}: {e}")
-                if "api_key" in err_msg or "401" in err_msg or "unauthorized" in err_msg:
-                    raise HTTPException(status_code=400, detail=f"❌ API Key {provider} tidak valid.")
-                elif "model" in err_msg or "404" in err_msg:
-                    raise HTTPException(status_code=400, detail=f"❌ Model {settings.model} tidak ditemukan di {provider}.")
-                else:
-                    raise HTTPException(status_code=400, detail=f"❌ Kesalahan {provider}: {str(e)}")
-
-            # 3. Load existing settings to merge
-            settings_path = Path("workspace/settings.json")
-            current_settings = {}
-            if settings_path.exists():
-                try:
-                    with open(settings_path, "r", encoding="utf-8") as f:
-                        current_settings = json.load(f)
-                except Exception:
-                    log("warn", "settings.json corrupt atau tidak bisa dibaca, akan di-overwrite")
-
-            # 4. Update settings & Encrypt
-            if provider == "openrouter":
-                current_settings["OPENROUTER_API_KEY"] = api_key
-                current_settings["OPENROUTER_MODEL"] = settings.model
-                current_settings["ACTIVE_PROVIDER"] = "openrouter"
-            else:
-                current_settings["GOOGLE_API_KEY"] = api_key
-                current_settings["GOOGLE_MODEL"] = settings.model
-                current_settings["ACTIVE_PROVIDER"] = "google"
-
-            # Sync AGENT_MODEL
-            current_settings["AGENT_MODEL"] = settings.model
-            
-            # Enkripsi sebelum tulis ke disk
-            encrypted_settings = SecurityManager.encrypt_dict(current_settings)
-
-            with open(settings_path, "w", encoding="utf-8") as f:
-                json.dump(encrypted_settings, f, indent=4)
-
-            # 5. Update os.environ
-            os.environ[key_env] = api_key
-            os.environ[model_env] = settings.model
-            os.environ["ACTIVE_PROVIDER"] = provider
-            os.environ["AGENT_MODEL"] = settings.model
-
-            # 6. Reset Agents (termasuk system agent agar reload config)
-            self._agents.clear()
-            self._system_agent = None
-
-            log("gateway", f"Settings updated for {provider} — model: {settings.model}")
-            return {"status": "ok", "message": f"✅ Koneksi {provider} berhasil! Setting disimpan."}
+        from src.gateway.routers import settings_router, upload_router, session_router, stats_router
+        self._app.include_router(settings_router.router)
+        self._app.include_router(upload_router.router)
+        self._app.include_router(session_router.router)
+        self._app.include_router(stats_router.router)
 
         @self._app.get("/")
         async def get_index():
@@ -498,548 +137,225 @@ class GatewayServer:
         @self._app.websocket("/ws/{session_id}")
         async def websocket_endpoint(websocket: WebSocket, session_id: str):
             token = websocket.query_params.get("token")
-            expected = SecurityManager.get_gateway_token()
-            
-            if token != expected:
-                log("ws", f"⚠️  Autentikasi WebSocket DITOLAK — session: {session_id}")
-                log("ws", f"   Diterima: '{token}'")
-                log("ws", f"   Diharapkan: '{expected}'")
-                await websocket.accept() # Terima dulu lalu tutup agar browser melihat kodenya
+            if token != SecurityManager.get_gateway_token():
+                await websocket.accept() 
                 await websocket.close(code=4001)
                 return
 
             await websocket.accept()
-            log("ws", f"✅ Client tersambung — session: {session_id}")
             self._session_buffers[session_id] = []
-            log("ws", f"Client connected — session: {session_id}")
-
             try:
                 agent = self._create_agent(session_id)
                 self._active_sessions[session_id] = {"websocket": websocket}
-
                 while True:
                     data = await websocket.receive_text()
                     message = json.loads(data)
-                    msg_type = message.get("type", "")
-
-                    if msg_type == "message":
+                    if message.get("type") == "message":
                         user_input = message.get("content", "")
-                        file_context = message.get("file_context", None)
-                        
-                        # Log file context status
-                        has_file = file_context is not None and bool(file_context.get("text"))
-                        if has_file:
-                            log("upload", f"File context received: {file_context.get('filename', 'unknown')} | text length: {len(file_context.get('text', ''))} chars")
-                        else:
-                            log("upload", "No file context - sending plain message")
-                        
+                        file_context = message.get("file_context")
                         self._session_buffers[session_id] = []
-
                         captured_usage = None
                         captured_finish_reason = None
-                        
-                        # Pass metadata (file_context) directly to the agent
+                        res = None
                         for item in agent.run_stream(user_input, metadata=file_context):
-                            token = item[0] if hasattr(item, '__getitem__') else item
-                            usage = item[1] if (hasattr(item, '__len__') and len(item) > 1) else None
-                            finish_reason = item[2] if (hasattr(item, '__len__') and len(item) > 2) else None
-                            
-                            if usage:
-                                captured_usage = usage
-                            if finish_reason:
-                                captured_finish_reason = finish_reason
-                                
-                            if token == "__SYSTEM_RECONNECT__":
-                                await websocket.send_json({
-                                    "type": "info",
-                                    "message": "Koneksi ke AI terputus. Menyambung paksa aliran data secara otomatis..."
-                                })
-                                continue
-                                
-                            await websocket.send_json({
-                                "type": "token",
-                                "content": token,
-                            })
-                            self._session_buffers[session_id].append(token)
+                            token_val, usage, finish_reason = item
+                            if usage: captured_usage = usage
+                            if finish_reason: captured_finish_reason = finish_reason
+                            if token_val == "__SYSTEM_RECONNECT__": continue
+                            await websocket.send_json({"type": "token", "content": token_val})
+                            self._session_buffers[session_id].append(token_val)
+                            res = item
 
+                        # Log usage Safely
+                        it, ot = 0, 0
                         if captured_usage:
-                            input_tokens = captured_usage.prompt_tokens if hasattr(captured_usage, "prompt_tokens") else captured_usage.get("prompt_tokens", 0)
-                            output_tokens = captured_usage.completion_tokens if hasattr(captured_usage, "completion_tokens") else captured_usage.get("completion_tokens", 0)
-                        else:
-                            # Fallback estimation
-                            input_tokens = max(1, (len(user_input) + (len(file_context.get("text", "")) if has_file else 0)) // 4)
-                            output_tokens = max(1, len("".join(self._session_buffers.get(session_id, []))) // 4)
+                            it = getattr(captured_usage, "prompt_tokens", captured_usage.get("prompt_tokens", 0) if isinstance(captured_usage, dict) else 0)
+                            ot = getattr(captured_usage, "completion_tokens", captured_usage.get("completion_tokens", 0) if isinstance(captured_usage, dict) else 0)
+                        if it == 0: it = max(1, (len(user_input) + (len(file_context.get("text", "")) if file_context else 0)) // 4)
+                        if ot == 0: ot = max(1, len("".join(self._session_buffers.get(session_id, []))) // 4)
 
-                        self._usage_store.log_usage(
-                            session_id=session_id,
-                            provider=os.environ.get("ACTIVE_PROVIDER", "google"),
-                            model=agent.model_name,
-                            input_tokens=input_tokens,
-                            output_tokens=output_tokens,
-                            status="success"
-                        )
+                        self._usage_store.log_usage(session_id, os.environ.get("ACTIVE_PROVIDER", "google"), agent.model_name, it, ot, "success")
+
+                        # --- HITL TOOL APPROVAL LOGIC ---
+                        final_result = agent.run(user_input, metadata=file_context)
+                        tool_calls = final_result.get("tool_calls", [])
+                        tool_results = []
+
+                        for call in tool_calls:
+                            name = call["tool_name"]
+                            params = call["params"]
+                            
+                            if agent._tool_registry.is_sensitive(name):
+                                await websocket.send_json({
+                                    "type": "approval_request",
+                                    "tool": name,
+                                    "params": params
+                                })
+                                try:
+                                    resp_raw = await websocket.receive_text()
+                                    resp = json.loads(resp_raw)
+                                    if resp.get("type") == "approval_response" and resp.get("approved"):
+                                        exec_result = agent.execute_tool(name, **params)
+                                    else:
+                                        exec_result = {"success": False, "error": "Aksi ditolak oleh pengguna."}
+                                except Exception as e:
+                                    exec_result = {"success": False, "error": f"Error approval: {e}"}
+                            else:
+                                exec_result = agent.execute_tool(name, **params)
+                            
+                            tool_results.append({"tool": name, "params": params, "result": exec_result})
 
                         await websocket.send_json({
-                            "type": "done",
-                            "session_id": session_id,
-                            "finish_reason": captured_finish_reason,
-                            "usage": {
-                                "input_tokens": input_tokens,
-                                "output_tokens": output_tokens,
-                            },
+                            "type": "done", 
+                            "usage": {"input_tokens": it, "output_tokens": ot},
+                            "tool_results": tool_results
                         })
-
-                    elif msg_type == "reset":
-                        agent.clear_history()
-                        self._session_buffers[session_id] = []
-                        await websocket.send_json({
-                            "type": "done",
-                            "session_id": session_id,
-                            "message": "Session reset",
-                        })
-
-                    elif msg_type == "save":
-                        filename = message.get("filename", "output.txt")
-                        content = "".join(self._session_buffers.get(session_id, []))
-                        saved_path = agent.save_translation(filename, content)
-                        await websocket.send_json({
-                            "type": "file_saved",
-                            "path": saved_path,
-                        })
-
-                    elif msg_type == "clear":
+                    elif message.get("type") == "reset":
                         agent.clear_history()
                         self._session_buffers[session_id] = []
                         await websocket.send_json({"type": "done", "session_id": session_id})
-
             except WebSocketDisconnect:
-                log("ws", f"Client disconnected — session: {session_id}")
                 self._cleanup_session(session_id)
             except Exception as e:
-                log("error", f"WebSocket error: {e}")
-                try:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": str(e),
-                    })
-                except Exception:
-                    pass  # WS mungkin sudah tutup
+                log("error", f"WS error: {e}")
                 self._cleanup_session(session_id)
 
         @self._app.get("/health")
         async def health():
-            return {
-                "status": "ok",
-                "sessions": len(self._active_sessions),
-                "active_sessions": list(self._active_sessions.keys()),
-            }
-
-        @self._app.get("/sessions")
-        async def list_sessions(request: Request):
-            self._verify_token(request)
-            from src.memory.session_store import SessionStore
-            store = SessionStore()
-            sessions = store.list_sessions()
-            log("gateway", f"Listed sessions: {len(sessions)}")
-            return {"sessions": sessions}
+            return {"status": "ok", "sessions": len(self._active_sessions)}
 
         @self._app.post("/sessions/{session_id}/connected")
         async def create_connected_session(session_id: str, request: Request):
             self._verify_token(request)
             from src.memory.session_store import SessionStore
             store = SessionStore()
-            
-            # 1. Ambil riwayat sesi lama
             messages = store.get_session_messages(session_id)
-            if not messages:
-                raise HTTPException(status_code=404, detail="Sesi lama tidak ditemukan atau kosong")
-            
-            # 2. Buat ringkasan menggunakan LLM
+            if not messages: raise HTTPException(404, "Sesi tidak ditemukan")
             agent = self._get_system_agent()
-            llm_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
-            summary = agent.llm.summarize(llm_messages)
-            
-            # 3. Buat sesi baru
-            from uuid import uuid4
-            new_session_id = f"s-{int(time.time()*1000)}-{uuid4().hex[:7]}"
-            store.create_session(new_session_id, name=f"Lanjutan: {session_id[:8]}")
-            
-            # 4. Masukkan pesan introduksi yang berisi ringkasan
-            intro_content = f"Sesi ini dilanjutkan dari sesi sebelumnya.\n\n**Ringkasan Konteks Sebelumnya:**\n{summary}\n\nApa yang ingin Anda bahas selanjutnya?"
-            store.add_message(new_session_id, "assistant", intro_content)
-            
-            log("gateway", f"Connected session created: {new_session_id} from {session_id}")
-            return {
-                "session_id": new_session_id,
-                "summary": summary,
-                "intro": intro_content
-            }
-
-        @self._app.delete("/sessions/cleanup")
-        async def cleanup_empty_sessions():
-            import sqlite3
-            from pathlib import Path
-            db_path = Path("workspace/memory/sessions.db")
-            if db_path.exists():
-                with sqlite3.connect(str(db_path)) as conn:
-                    cursor = conn.execute("""
-                        DELETE FROM sessions
-                        WHERE session_id NOT IN (
-                            SELECT DISTINCT session_id FROM messages
-                        )
-                    """)
-                    deleted = cursor.rowcount
-                    conn.commit()
-                    log("gateway", f"Cleaned up {deleted} empty sessions")
-                    return {"deleted": deleted}
-            return {"deleted": 0}
-
-        @self._app.get("/sessions/{session_id}/messages")
-        async def get_session_messages(session_id: str):
-            from src.memory.session_store import SessionStore
-            store = SessionStore()
-            sessions = store.list_sessions()
-            session = next((s for s in sessions if s["session_id"] == session_id), None)
-            if not session:
-                raise HTTPException(status_code=404, detail="Session not found")
-            messages = store.get_session_messages(session_id)
-            log("gateway", f"Retrieved messages for session: {session_id}")
-            return {
-                "session_id": session_id,
-                "name": session.get("name"),
-                "messages": messages
-            }
+            summary = agent._llm_client.summarize([{"role": m["role"], "content": m["content"]} for m in messages])
+            new_id = f"s-{int(time.time()*1000)}-{uuid.uuid4().hex[:7]}"
+            store.create_session(new_id)
+            intro = f"Lanjutan sesi sebelumnya.\n\n**Ringkasan:**\n{summary}"
+            store.add_message(new_id, "assistant", intro)
+            return {"session_id": new_id, "summary": summary, "intro": intro}
 
         @self._app.delete("/sessions/{session_id}")
         async def delete_session(session_id: str, request: Request):
             self._verify_token(request)
             from src.memory.session_store import SessionStore
             store = SessionStore()
-            
-            # 1. Ambil semua pesan untuk mencari metadata file
             messages = store.get_session_messages(session_id)
             for msg in messages:
                 meta = msg.get("metadata")
-                if meta and isinstance(meta, dict):
-                    file_id = meta.get("file_id")
-                    if file_id:
-                        file_path = self._upload_dir / file_id
-                        if file_path.exists():
-                            try:
-                                file_path.unlink()
-                                log("gateway", f"Physical file deleted: {file_id}")
-                            except Exception as e:
-                                log("error", f"Failed to delete physical file {file_id}: {e}")
-            
-            # 2. Hapus data dari database
+                if meta and isinstance(meta, dict) and meta.get("file_id"):
+                    fp = self._upload_dir / meta["file_id"]
+                    if fp.exists(): fp.unlink()
             store.delete_session(session_id)
             self._cleanup_session(session_id)
-            log("gateway", f"Deleted session and its files: {session_id}")
             return {"success": True}
-
-        @self._app.delete("/sessions/{session_id}/messages/last")
-        async def delete_last_message(session_id: str):
-            from src.memory.session_store import SessionStore
-            store = SessionStore()
-            deleted = store.delete_last_user_message(session_id)
-            if deleted:
-                log("gateway", f"Deleted last user message for session: {session_id}")
-                return {"success": True}
-            raise HTTPException(status_code=404, detail="No user message found to delete")
-
-
-        @self._app.patch("/sessions/{session_id}/name")
-        async def update_session_name(session_id: str, body: dict):
-            from src.memory.session_store import SessionStore
-            store = SessionStore()
-            new_name = body.get("name", "").strip()
-            if not new_name:
-                raise HTTPException(status_code=400, detail="Name cannot be empty")
-            store.update_session_name(session_id, new_name)
-            log("gateway", f"Updated session name: {session_id} -> {new_name}")
-            return {"success": True}
-
-        @self._app.get("/files")
-        async def list_files():
-            output_dir = Path("workspace/output")
-            output_dir.mkdir(parents=True, exist_ok=True)
-            files = [f.name for f in output_dir.iterdir() if f.is_file()]
-            return {"files": files}
 
         @self._app.get("/skills")
         async def list_skills(request: Request):
             self._verify_token(request)
-            agent = self._get_system_agent()
-            skills_data = []
-            for name, info in agent._skill_manager.available_skills.items():
-                desc = info.get("description", "")
-            skills_data = agent._skill_manager.list_skills_detail()
-            return {
-                "skills": skills_data,
-                "active_skill": agent._skill_manager.active_skill,
-                "total": len(skills_data),
-            }
+            return {"skills": self._get_system_agent()._skill_manager.list_skills_detail(), "active_skill": self._get_system_agent()._skill_manager.active_skill}
 
         @self._app.post("/skills/{skill_name}/activate")
         async def activate_skill(skill_name: str, request: Request):
             self._verify_token(request)
-            system_agent = self._get_system_agent()
-            try:
-                system_agent._skill_manager.activate(skill_name)
-            except ValueError as e:
-                raise HTTPException(status_code=404, detail=str(e))
-
-            # Sinkronisasi ke semua session agent yang sedang aktif
-            for agent in self._agents.values():
-                try:
-                    agent._skill_manager.activate(skill_name)
-                except Exception:
-                    pass
-
-            log("gateway", f"Skill '{skill_name}' activated globally")
-            return {
-                "success": True,
-                "active_skill": skill_name,
-                "message": f"✅ Skill '{skill_name}' berhasil diaktifkan.",
-            }
+            self._get_system_agent()._skill_manager.activate(skill_name)
+            for a in self._agents.values():
+                try: a._skill_manager.activate(skill_name)
+                except: pass
+            return {"success": True}
 
         @self._app.post("/skills/deactivate")
         async def deactivate_skill(request: Request):
             self._verify_token(request)
-            system_agent = self._get_system_agent()
-            system_agent._skill_manager.deactivate()
-
-            # Sinkronisasi ke semua session agent yang sedang aktif
-            for agent in self._agents.values():
-                try:
-                    agent._skill_manager.deactivate()
-                except Exception:
-                    pass
-
-            log("gateway", "Skill deactivated globally")
-            return {
-                "success": True,
-                "active_skill": None,
-                "message": "✅ Skill dinonaktifkan. Agent kembali ke mode asisten biasa.",
-            }
-
-        @self._app.get("/tools/template")
-        async def get_tool_template():
-            file_path = "workspace/tools/TOOL_TEMPLATE.py"
-            if not Path(file_path).exists():
-                raise HTTPException(status_code=404, detail="Template tidak ditemukan")
-            return FileResponse(file_path, filename="TOOL_TEMPLATE.py")
-
-        @self._app.post("/skills/reload")
-        async def reload_skills(request: Request):
-            self._verify_token(request)
-            system_agent = self._get_system_agent()
-            result = system_agent._skill_manager.reload()
-
-            # Reload juga di semua session agent aktif
-            for agent in self._agents.values():
-                try:
-                    agent._skill_manager.reload()
-                except Exception:
-                    pass
-
-            log("gateway", f"Skills reloaded — {result['total']} total")
-            return {
-                "success": True,
-                "message": f"✅ Skills berhasil direload. {result['total']} skill terdeteksi.",
-                **result,
-            }
-
-        @self._app.get("/skills/template")
-        async def get_skill_template(request: Request):
-            template_path = Path("workspace/skills/SKILL_TEMPLATE.md")
-            if not template_path.exists():
-                raise HTTPException(status_code=404, detail="Template file tidak ditemukan")
-            return FileResponse(
-                template_path,
-                media_type="text/markdown",
-                filename="SKILL_TEMPLATE.md",
-                headers={"Content-Disposition": "attachment; filename=SKILL_TEMPLATE.md"}
-            )
-
-        # ─────────────────────────────────────────────
-        # TOOLS MANAGEMENT ENDPOINTS
-        # ─────────────────────────────────────────────
+            self._get_system_agent()._skill_manager.deactivate()
+            for a in self._agents.values():
+                try: a._skill_manager.deactivate()
+                except: pass
+            return {"success": True}
 
         @self._app.get("/tools")
         async def list_tools(request: Request):
             self._verify_token(request)
-            agent = self._get_system_agent()
-            tools_detail = agent._tool_registry.list_tools_detail()
-            enabled_count = sum(1 for t in tools_detail if t["enabled"])
-            return {
-                "tools": tools_detail,
-                "total": len(tools_detail),
-                "enabled": enabled_count,
-            }
+            return {"tools": self._get_system_agent()._tool_registry.list_tools_detail()}
 
         @self._app.post("/tools/{tool_name}/toggle")
         async def toggle_tool(tool_name: str, request: Request):
             self._verify_token(request)
-            system_agent = self._get_system_agent()
-            try:
-                new_state = system_agent._tool_registry.toggle(tool_name)
-            except KeyError:
-                raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' tidak ditemukan")
-
-            # Sinkronisasi state ke semua agent session yang sedang berjalan
-            for agent in self._agents.values():
-                try:
-                    agent._tool_registry._state[tool_name] = new_state
-                except Exception:
-                    pass
-
-            log("gateway", f"Tool '{tool_name}' toggled → {'aktif' if new_state else 'nonaktif'}")
-            return {
-                "success": True,
-                "tool": tool_name,
-                "enabled": new_state,
-                "message": f"Tool '{tool_name}' berhasil {'diaktifkan' if new_state else 'dinonaktifkan'}.",
-            }
-
-        @self._app.post("/tools/reload")
-        async def reload_tools(request: Request):
-            self._verify_token(request)
-            system_agent = self._get_system_agent()
-            result = system_agent._tool_registry.reload()
-
-            # Reload juga di semua agent session aktif
-            for agent in self._agents.values():
-                try:
-                    agent._tool_registry.reload()
-                except Exception:
-                    pass
-
-            log("gateway", f"Tools reloaded — {result['total']} total ({result['custom']} custom)")
-            return {
-                "success": True,
-                "message": f"✅ Tools berhasil direload. {result['custom']} custom tool terdeteksi.",
-                **result,
-            }
-
-        @self._app.get("/tools/template")
-        async def download_tool_template():
-            template_path = Path("workspace/tools/TOOL_TEMPLATE.py")
-            if not template_path.exists():
-                raise HTTPException(status_code=404, detail="TOOL_TEMPLATE.py tidak ditemukan")
-            return FileResponse(
-                template_path,
-                media_type="text/x-python",
-                filename="TOOL_TEMPLATE.py",
-                headers={"Content-Disposition": "attachment; filename=TOOL_TEMPLATE.py"},
-            )
+            st = self._get_system_agent()._tool_registry.toggle(tool_name)
+            for a in self._agents.values():
+                try: a._tool_registry._state[tool_name] = st
+                except: pass
+            return {"success": True, "enabled": st}
 
     def _get_system_agent(self) -> Any:
-        """Dapatkan agent __system__ khusus untuk endpoint non-chat.
-        Agent ini di-cache tapi tidak menyimpan history chat untuk mencegah memory leak.
-        """
         if self._system_agent is None:
             from src.agent.agent_loop import AgentLoop
             self._system_agent = AgentLoop(session_id="__system__")
         return self._system_agent
 
     def _create_agent(self, session_id: str) -> Any:
-        """Buat atau dapatkan agent untuk session chat. __system__ ditangani terpisah."""
-        if session_id == "__system__":
-            return self._get_system_agent()
+        if session_id == "__system__": return self._get_system_agent()
         if session_id not in self._agents:
             from src.agent.agent_loop import AgentLoop
             self._agents[session_id] = AgentLoop(session_id=session_id)
         return self._agents[session_id]
 
     def _cleanup_session(self, session_id: str):
-        if session_id in self._active_sessions:
-            del self._active_sessions[session_id]
-        if session_id in self._agents:
-            del self._agents[session_id]
-        if session_id in self._session_buffers:
-            del self._session_buffers[session_id]
+        if session_id in self._active_sessions: del self._active_sessions[session_id]
+        if session_id in self._agents: del self._agents[session_id]
+        if session_id in self._session_buffers: del self._session_buffers[session_id]
 
     def run(self):
         self._running = True
         log("gateway", f"Server running on http://{self._host}:{self._port}")
         uvicorn.run(self._app, host=self._host, port=self._port, log_level="warning")
 
-
-def print_banner(skill_count: int = 0, port: int = _DEFAULT_PORT):
-    banner = """
-\033[96m██╗  ██╗██╗   ██╗██╗   ██╗██████╗  █████╗  █████╗
-██║ ██╔╝╚██╗ ██╔╝██║   ██║██╔══██╗██╔══██╗██╔══██╗
-█████╔╝  ╚████╔╝ ██║   ██║██████╔╝███████║███████║
-██╔═██╗   ╚██╔╝  ██║   ██║██╔══██╗██╔══██║██╔══██║
-██║  ██╗   ██║   ╚██████╔╝██║  ██║██║  ██║██║  ██║
-╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
-\033[0m
-\033[96mv1.0.0 — Personal AI Agent\033[0m
-\033[90mSkill aktif:\033[0m \033[92m{skill_count} skill terdeteksi\033[0m
-\033[90mGateway:\033[0m \033[96mhttp://127.0.0.1:{port}\033[0m
-\033[90mToken Akses:\033[0m \033[93m{token}\033[0m
-\033[90m─────────────────────────────────────────────────────\033[0m
-""".format(skill_count=skill_count, port=port, token=SecurityManager.get_gateway_token())
+def print_banner(skill_count: int = 0, port: int = 8766):
+    token = SecurityManager.get_gateway_token()
+    banner = f"""
+\033[96m
+   __                        
+  / /_____  __ _________ ____
+ /  '_/ / / / / __/ _  / _  /
+/_/\_\\_, / /_/ / /\_,_/\_,_/ 
+     /___/  \033[90mv1.0.3\033[0m
+\033[94m─────────────────────────────────────────────────────\033[0m
+\033[90mSTATUS:\033[0m \033[92mONLINE\033[0m
+\033[90mSKILLS:\033[0m \033[92m{skill_count} Active\033[0m
+\033[90mURL   :\033[0m \033[96mhttp://127.0.0.1:{port}\033[0m
+\033[90mTOKEN :\033[0m \033[93m{token}\033[0m
+\033[94m─────────────────────────────────────────────────────\033[0m
+"""
     print(banner)
 
-
 def main():
-    from pathlib import Path
+    port = int(os.environ.get("GATEWAY_PORT", 8766))
+    
+    # Hitung skill secara ringan untuk banner awal
+    skill_count = 0
+    try:
+        s_dir = Path("workspace/skills")
+        if s_dir.exists():
+            skill_count = len([d for d in s_dir.iterdir() if d.is_dir()])
+    except:
+        pass
 
-    # Ensure project root is in sys.path for direct execution
-    sys.path.append(str(Path(__file__).parent.parent.parent))
-
-    # 1. Load from settings.json (Highest priority)
-    settings_path = Path("workspace/settings.json")
-    if settings_path.exists():
-        try:
-            with open(settings_path, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-                for key, value in settings.items():
-                    os.environ[key] = str(value)
-            log("gateway", f"Loaded config from {settings_path}")
-        except Exception as e:
-            log("error", f"Error loading settings.json: {e}")
-
-    # 2. Load from .env (Fallback)
-    env_path = Path(".env")
-    if env_path.exists():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if "=" in line and not line.startswith("#"):
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
-
-    port = int(os.environ.get("GATEWAY_PORT", _DEFAULT_PORT))
-    host = os.environ.get("GATEWAY_HOST", "localhost")
-
-    server = GatewayServer(host=host, port=port)
-
-    # Purge session lama saat startup
-    purged = _purge_old_sessions(days=30)
-    if purged > 0:
-        log("gateway", f"Purged {purged} sessions older than 30 days")
-
-    from src.agent.agent_loop import AgentLoop
-    temp_agent = AgentLoop(session_id="__system__")
-    skill_count = len(temp_agent._skill_manager.available_skills)
     print_banner(skill_count, port)
-
-    def signal_handler(sig, frame):
-        log("gateway", "Shutting down...")
-        server._running = False
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
+    
+    server = GatewayServer(port=port)
+    # Background initialization of system agent
+    from src.agent.agent_loop import AgentLoop
+    sa = AgentLoop(session_id="__system__")
+    
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
     server.run()
-
 
 if __name__ == "__main__":
     main()
-
 
 if __name__ != "__main__":
     app = GatewayServer()._app

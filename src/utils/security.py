@@ -35,7 +35,9 @@ class SecurityManager:
         
         if not cls._gateway_token:
             cls._gateway_token = str(uuid.uuid4().hex[:16])
-            log("security", f"New Gateway Token generated: {cls._gateway_token}")
+            # Mask token in logs for security
+            masked = cls._gateway_token[:4] + "********" 
+            log("security", f"New Gateway Token generated: {masked}")
             
         os.environ["GATEWAY_TOKEN"] = cls._gateway_token
 

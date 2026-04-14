@@ -16,8 +16,8 @@ TOOL_CALL_PATTERN = re.compile(
     re.IGNORECASE
 )
 
-
 def parse_tool_calls(response_text: str) -> list[dict[str, Any]]:
+    """Mengekstrak tool calls dari teks respon assistant."""
     tool_calls = []
     pattern = re.compile(r'\[TOOL:\s*(\w+)\](.*?)(?=\[TOOL:|$)', re.IGNORECASE | re.DOTALL)
 
@@ -158,7 +158,7 @@ class AgentLoop:
             pass
 
         self._session_store.add_message(self._session_id, "assistant", assistant_content)
-        tool_results = self._execute_tool_calls(assistant_content)
+        tool_calls = parse_tool_calls(assistant_content)
 
         log("agent", f"Response complete — {len(assistant_content.split())} words")
         return {
@@ -167,7 +167,7 @@ class AgentLoop:
             "style": style,
             "response": assistant_content,
             "references_loaded": list(references.keys()),
-            "tool_results": tool_results,
+            "tool_calls": tool_calls,
             "usage": captured_usage,
             "finish_reason": last_finish_reason,
         }
