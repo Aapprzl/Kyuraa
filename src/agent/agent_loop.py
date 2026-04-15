@@ -9,6 +9,7 @@ from src.agent.llm_client import LLMClient
 from src.memory.session_store import SessionStore
 from src.tools.registry import ToolRegistry
 from src.utils.logger import log
+from src.config import SESSION_HISTORY_LIMIT, LLM_MAX_RETRIES
 
 
 TOOL_CALL_PATTERN = re.compile(
@@ -67,7 +68,7 @@ class AgentLoop:
         style = self._detect_style(user_input)
 
         self._session_store.add_message(self._session_id, "user", user_input, metadata=metadata)
-        history = self._session_store.get_history(self._session_id, limit=20)
+        history = self._session_store.get_history(self._session_id, limit=SESSION_HISTORY_LIMIT)
 
         needed_refs = self._prompt_builder.detect_needed_references(user_input, self._skill_manager)
         references = self._load_references(needed_refs)
@@ -108,7 +109,7 @@ class AgentLoop:
         style = self._detect_style(user_input)
 
         self._session_store.add_message(self._session_id, "user", user_input, metadata=metadata)
-        history = self._session_store.get_history(self._session_id, limit=20)
+        history = self._session_store.get_history(self._session_id, limit=SESSION_HISTORY_LIMIT)
 
         needed_refs = self._prompt_builder.detect_needed_references(user_input, self._skill_manager)
         references = self._load_references(needed_refs)
@@ -122,7 +123,7 @@ class AgentLoop:
         full_response = []
         captured_usage = None
         last_finish_reason = None
-        MAX_RETRIES = 3
+        MAX_RETRIES = LLM_MAX_RETRIES
 
         for attempt in range(MAX_RETRIES):
             try:
@@ -213,6 +214,38 @@ class AgentLoop:
 
     def clear_history(self) -> bool:
         return self._session_store.clear_session(self._session_id)
+
+    def activate_skill(self, skill_name: str) -> bool:
+        return self._skill_manager.activate(skill_name)
+
+    def deactivate_skill(self) -> None:
+        self._skill_manager.deactivate()
+
+    def list_tools_detail(self) -> list[dict]:
+        return self._tool_registry.list_tools_detail()
+
+    def toggle_tool(self, tool_name: str) -> bool:
+        return self._tool_registry.toggle(tool_name)
+
+    def reload_tools(self) -> dict:
+        return self._tool_registry.reload()
+
+    def reload_skills(self) -> dict:
+        return self._skill_manager.reload()
+
+    def summarize_session(self) -> str:
+        messages = self._session_store.get_session_messages(self._session_id)
+        return self._llm_client.summarize(
+            [{"role": m["role"], "content": m["content"]} for m in messages]
+        )
+
+    @property
+    def active_skill(self) -> str | None:
+        return self._skill_manager.active_skill
+
+    @property
+    def skills_detail(self) -> list[dict]:
+        return self._skill_manager.list_skills_detail()
 
     @property
     def session_id(self) -> str:

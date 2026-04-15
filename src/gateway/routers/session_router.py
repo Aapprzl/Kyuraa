@@ -20,7 +20,8 @@ async def list_sessions(request: Request):
     return {"sessions": sessions}
 
 @router.get("/sessions/{session_id}/messages")
-async def get_session_messages(session_id: str):
+async def get_session_messages(session_id: str, request: Request):
+    verify_token(request)
     sessions = store.list_sessions()
     session = next((s for s in sessions if s["session_id"] == session_id), None)
     if not session:
@@ -33,14 +34,16 @@ async def get_session_messages(session_id: str):
     }
 
 @router.delete("/sessions/{session_id}/messages/last")
-async def delete_last_message(session_id: str):
+async def delete_last_message(session_id: str, request: Request):
+    verify_token(request)
     deleted = store.delete_last_user_message(session_id)
     if deleted:
         return {"success": True}
     raise HTTPException(status_code=404, detail="No user message found to delete")
 
 @router.patch("/sessions/{session_id}/name")
-async def update_session_name(session_id: str, body: dict):
+async def update_session_name(session_id: str, body: dict, request: Request):
+    verify_token(request)
     new_name = body.get("name", "").strip()
     if not new_name:
         raise HTTPException(status_code=400, detail="Name cannot be empty")
@@ -48,7 +51,8 @@ async def update_session_name(session_id: str, body: dict):
     return {"success": True}
 
 @router.delete("/sessions/cleanup")
-async def cleanup_empty_sessions():
+async def cleanup_empty_sessions(request: Request):
+    verify_token(request)
     import sqlite3
     db_path = Path("workspace/memory/sessions.db")
     if db_path.exists():
@@ -60,7 +64,8 @@ async def cleanup_empty_sessions():
     return {"deleted": 0}
 
 @router.get("/files")
-async def list_files():
+async def list_files(request: Request):
+    verify_token(request)
     output_dir = Path("workspace/output")
     output_dir.mkdir(parents=True, exist_ok=True)
     files = [f.name for f in output_dir.iterdir() if f.is_file()]

@@ -29,12 +29,34 @@ class TestE2E:
             env=env,
             text=True
         )
-        time.sleep(8) # Beri waktu lebih lama agar server benar-benar siap
+        
+        # Polling active health check
+        import urllib.request
+        import urllib.error
+        for _ in range(30):
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{cls.port}/stats?token={TEST_TOKEN}", timeout=1)
+                break
+            except (urllib.error.URLError, ConnectionError, urllib.error.HTTPError):
+                time.sleep(0.5)
+        else:
+            cls.server.terminate()
+            raise RuntimeError("Test server failed to start within 15 seconds")
 
     @classmethod
     def teardown_class(cls):
         cls.server.terminate()
         cls.server.wait()
+        
+        # Cleanup test database
+        try:
+            import sqlite3
+            with sqlite3.connect("workspace/memory/sessions.db") as conn:
+                conn.execute("DELETE FROM messages WHERE session_id LIKE 'test-session-%'")
+                conn.execute("DELETE FROM sessions WHERE session_id LIKE 'test-session-%'")
+                conn.commit()
+        except Exception:
+            pass
 
     async def _get_ws_connection(self, session_id: str):
         import websockets

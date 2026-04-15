@@ -189,6 +189,13 @@ class ToolRegistry:
         log("tools", f"Tool '{name}' {'diaktifkan' if new_state else 'dinonaktifkan'}")
         return new_state
 
+    def is_sensitive(self, name: str) -> bool:
+        """
+        Cek apakah tool termasuk dalam daftar tool sensitif yang memerlukan
+        persetujuan user (Human-in-the-Loop) sebelum dieksekusi.
+        """
+        return name in SENSITIVE_TOOLS
+
     def reload(self) -> dict:
         """
         Reload custom tools dari disk tanpa restart server.

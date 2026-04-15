@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 
 from src.utils.logger import log
 from src.utils.security import SecurityManager
+from src.config import MAX_UPLOAD_SIZE_BYTES, MAX_PDF_TOKENS
 
 router = APIRouter()
 
@@ -31,8 +32,12 @@ async def upload_pdf(request: Request):
         file_path = UPLOAD_DIR / safe_name
         
         content = await file.read()
-        MAX_FILE_SIZE = 5 * 1024 * 1024
-        if len(content) > MAX_FILE_SIZE:
+        
+        # Validasi magic bytes PDF (%PDF)
+        if not content.startswith(b'%PDF'):
+            raise HTTPException(400, "File bukan PDF yang valid (magic bytes tidak sesuai)")
+            
+        if len(content) > MAX_UPLOAD_SIZE_BYTES:
             raise HTTPException(400, "File terlalu besar (max 5MB)")
         
         with open(file_path, "wb") as f:
@@ -43,7 +48,6 @@ async def upload_pdf(request: Request):
         analysis = await asyncio.to_thread(extract_text_from_pdf, str(file_path))
         
         estimated_tokens = estimate_tokens(analysis["text"])
-        MAX_PDF_TOKENS = 25000
         
         log("upload", f"PDF uploaded: {file.filename} | tokens: {estimated_tokens}")
         

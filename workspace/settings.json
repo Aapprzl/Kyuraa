@@ -6,7 +6,7 @@
     "GOOGLE_API_KEY": "enc:gAAAAABp3eXaoK24bZBl7A8k39F3_TIscN94hvTOspsfg8O7BWmt-jn2vsZjKVjbbLeD6SMaWr-0cuPgE_zbsge-19XY3RInoLb0WwuGpB_7eqosBGTwHMg1lZ-671zm1my7EQRlJw7Y",
     "GOOGLE_MODEL": "gemini-3-flash-preview",
     "TOOLS_STATE": {
-        "detect_language": false,
+        "detect_language": true,
         "read_file": true,
         "write_file": true,
         "save_translation": true,
@@ -17,5 +17,5 @@
         "open_output_folder": true,
         "word-counter": false
     },
-    "active_skill": null
+    "active_skill": "penerjemah-arab-indo"
 }

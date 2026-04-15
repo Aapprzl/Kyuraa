@@ -42,8 +42,8 @@ class TestSecurityBoundaries:
         assert "tidak diizinkan" in result["error"]
 
     def test_pdf_upload_security_size_limit(self):
-        # Create a large dummy content (over 5MB)
-        large_content = b"a" * (6 * 1024 * 1024)
+        # Create a large dummy content (over 5MB) starting with %PDF magic bytes
+        large_content = b"%PDF" + b"a" * (6 * 1024 * 1024)
         files = {"file": ("test.pdf", large_content, "application/pdf")}
         
         response = self.client.post(

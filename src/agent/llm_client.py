@@ -21,6 +21,10 @@ _load_env()
 
 
 from src.utils.logger import log
+from src.config import (
+    LLM_MAX_TOKENS, LLM_MAX_INPUT_TOKENS, LLM_TEMPERATURE, 
+    LLM_TIMEOUT_SECONDS, LLM_MAX_RETRIES
+)
 
 class LLMClient:
     def __init__(
@@ -28,7 +32,7 @@ class LLMClient:
         api_key: str | None = None,
         model: str | None = None,
         max_tokens: int | None = None,
-        timeout: int = 120,
+        timeout: int = LLM_TIMEOUT_SECONDS,
     ):
         # 1. Determine Provider
         self._provider = os.environ.get("ACTIVE_PROVIDER", "openrouter").lower()
@@ -57,9 +61,9 @@ class LLMClient:
             base_url=self._base_url,
             timeout=timeout,
         )
-        self._max_tokens = max_tokens or 8192
+        self._max_tokens = max_tokens or LLM_MAX_TOKENS
         # Max input context estimation limit (context window saftey)
-        self._max_input_estimate = 30000 
+        self._max_input_estimate = LLM_MAX_INPUT_TOKENS 
         self._timeout = timeout
 
     def chat(
@@ -78,7 +82,7 @@ class LLMClient:
 
         openai_messages = self._build_openai_messages(system, list(messages))
 
-        for attempt in range(3):
+        for attempt in range(LLM_MAX_RETRIES):
             try:
                 log("llm", f"Request sent → {self._model_name}")
                 start_time = time.time()
@@ -86,7 +90,7 @@ class LLMClient:
                     model=self._model_name,
                     messages=openai_messages,
                     max_tokens=self._max_tokens,
-                    temperature=0.7,
+                    temperature=LLM_TEMPERATURE,
                 )
                 duration = round(time.time() - start_time, 2)
                 content = response.choices[0].message.content or ""
@@ -109,8 +113,8 @@ class LLMClient:
                 error_str = str(e)
                 log("error", f"LLM error: {error_str}")
                 if "429" in error_str or "rate" in error_str.lower() or "quota" in error_str.lower():
-                    if attempt < 2:
-                        log("warn", f"Rate limit hit, retrying in 5 seconds... (attempt {attempt + 1}/3)")
+                    if attempt < LLM_MAX_RETRIES - 1:
+                        log("warn", f"Rate limit hit, retrying in 5 seconds... (attempt {attempt + 1}/{LLM_MAX_RETRIES})")
                         time.sleep(5)
                     else:
                         raise
@@ -160,7 +164,7 @@ class LLMClient:
                 model=self._model_name,
                 messages=openai_messages,
                 max_tokens=self._max_tokens,
-                temperature=0.7,
+                temperature=LLM_TEMPERATURE,
                 stream=True,
             )
             first_token = True

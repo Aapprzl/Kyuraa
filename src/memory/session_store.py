@@ -24,6 +24,7 @@ class SessionStore:
 
     def _init_db(self) -> None:
         with self._get_conn() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,

@@ -23,6 +23,8 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.utils.logger import log
 from src.utils.security import SecurityManager
 from src.memory.usage_store import UsageStore
+from src.agent.agent_loop import parse_tool_calls
+from src.config import MAX_USER_INPUT_CHARS
 
 # ============================================
 # INITIALIZATION (Load Env & Settings)
@@ -112,7 +114,7 @@ class GatewayServer:
         # Show banner even when running via uvicorn
         from src.agent.agent_loop import AgentLoop
         sa = AgentLoop(session_id="__system__")
-        print_banner(len(sa._skill_manager.available_skills), self._port)
+        print_banner(len(sa.skills_detail), self._port)
 
     def _verify_token(self, request):
         token = request.headers.get("X-API-Key") or request.query_params.get("token")
@@ -152,6 +154,9 @@ class GatewayServer:
                     message = json.loads(data)
                     if message.get("type") == "message":
                         user_input = message.get("content", "")
+                        if len(user_input) > MAX_USER_INPUT_CHARS:
+                            await websocket.send_json({"type": "error", "error": f"Pesan terlalu panjang (maksimum {MAX_USER_INPUT_CHARS} karakter)."})
+                            continue
                         file_context = message.get("file_context")
                         self._session_buffers[session_id] = []
                         captured_usage = None
@@ -177,8 +182,10 @@ class GatewayServer:
                         self._usage_store.log_usage(session_id, os.environ.get("ACTIVE_PROVIDER", "google"), agent.model_name, it, ot, "success")
 
                         # --- HITL TOOL APPROVAL LOGIC ---
-                        final_result = agent.run(user_input, metadata=file_context)
-                        tool_calls = final_result.get("tool_calls", [])
+                        # Gunakan konten dari buffer streaming (TIDAK memanggil agent.run() lagi
+                        # karena run_stream() sudah menyimpan pesan ke DB dan menjalankan LLM)
+                        assistant_content = "".join(self._session_buffers.get(session_id, []))
+                        tool_calls = parse_tool_calls(assistant_content)
                         tool_results = []
 
                         for call in tool_calls:
@@ -232,7 +239,7 @@ class GatewayServer:
             messages = store.get_session_messages(session_id)
             if not messages: raise HTTPException(404, "Sesi tidak ditemukan")
             agent = self._get_system_agent()
-            summary = agent._llm_client.summarize([{"role": m["role"], "content": m["content"]} for m in messages])
+            summary = agent.summarize_session()
             new_id = f"s-{int(time.time()*1000)}-{uuid.uuid4().hex[:7]}"
             store.create_session(new_id)
             intro = f"Lanjutan sesi sebelumnya.\n\n**Ringkasan:**\n{summary}"
@@ -257,37 +264,38 @@ class GatewayServer:
         @self._app.get("/skills")
         async def list_skills(request: Request):
             self._verify_token(request)
-            return {"skills": self._get_system_agent()._skill_manager.list_skills_detail(), "active_skill": self._get_system_agent()._skill_manager.active_skill}
+            sa = self._get_system_agent()
+            return {"skills": sa.skills_detail, "active_skill": sa.active_skill}
 
         @self._app.post("/skills/{skill_name}/activate")
         async def activate_skill(skill_name: str, request: Request):
             self._verify_token(request)
-            self._get_system_agent()._skill_manager.activate(skill_name)
+            self._get_system_agent().activate_skill(skill_name)
             for a in self._agents.values():
-                try: a._skill_manager.activate(skill_name)
+                try: a.activate_skill(skill_name)
                 except: pass
             return {"success": True}
 
         @self._app.post("/skills/deactivate")
         async def deactivate_skill(request: Request):
             self._verify_token(request)
-            self._get_system_agent()._skill_manager.deactivate()
+            self._get_system_agent().deactivate_skill()
             for a in self._agents.values():
-                try: a._skill_manager.deactivate()
+                try: a.deactivate_skill()
                 except: pass
             return {"success": True}
 
         @self._app.get("/tools")
         async def list_tools(request: Request):
             self._verify_token(request)
-            return {"tools": self._get_system_agent()._tool_registry.list_tools_detail()}
+            return {"tools": self._get_system_agent().list_tools_detail()}
 
         @self._app.post("/tools/{tool_name}/toggle")
         async def toggle_tool(tool_name: str, request: Request):
             self._verify_token(request)
-            st = self._get_system_agent()._tool_registry.toggle(tool_name)
+            st = self._get_system_agent().toggle_tool(tool_name)
             for a in self._agents.values():
-                try: a._tool_registry._state[tool_name] = st
+                try: a.reload_tools()
                 except: pass
             return {"success": True, "enabled": st}
 
@@ -321,7 +329,7 @@ def print_banner(skill_count: int = 0, port: int = 8766):
    __                        
   / /_____  __ _________ ____
  /  '_/ / / / / __/ _  / _  /
-/_/\_\\_, / /_/ / /\_,_/\_,_/ 
+/_/\\_\\_, / /_/ / /\\_,_/\\_,_/ 
      /___/  \033[90mv1.0.3\033[0m
 \033[94m─────────────────────────────────────────────────────\033[0m
 \033[90mSTATUS:\033[0m \033[92mONLINE\033[0m
