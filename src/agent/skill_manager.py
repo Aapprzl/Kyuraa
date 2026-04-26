@@ -240,16 +240,12 @@ class SkillManager:
         return "\n".join(lines)
 
     def get_system_prompt(self) -> str:
+        """Kembalikan isi SKILL.md saja. Referensi diurus oleh agent_loop dan
+        diinjeksi oleh PromptBuilder.build_system_with_references() agar tidak
+        ada referensi yang dimuat dua kali."""
         if not self.active_skill_content:
             return ""
-        prompt_parts = [self.active_skill_content]
-        always_refs = self.load_always_references()
-        if always_refs:
-            ref_section = "\n\n## Referensi Aktif:\n"
-            for ref_name, ref_content in always_refs.items():
-                ref_section += f"\n### {ref_name}\n{ref_content}\n"
-            prompt_parts.append(ref_section)
-        return "\n\n".join(prompt_parts)
+        return self.active_skill_content
 
     def is_active(self) -> bool:
         return self.active_skill is not None

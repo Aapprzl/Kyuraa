@@ -11,7 +11,7 @@ LLM_TIMEOUT_SECONDS: int = 120      # Timeout request ke LLM
 LLM_MAX_RETRIES: int = 3            # Maks percobaan ulang saat error
 
 # ─── Memory / History ────────────────────────────
-SESSION_HISTORY_LIMIT: int = 20     # Jumlah pesan riwayat yang dimuat per request
+SESSION_HISTORY_LIMIT: int = 10     # Jumlah pesan riwayat yang dimuat per request
 
 # ─── File Upload ─────────────────────────────────
 MAX_UPLOAD_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB
